@@ -122,12 +122,15 @@ class ToaCalculation(object):
         calCoeff, gain, offset = ToaCalculation.CALIBRATION_COEFF_DICT[key]
 
         sunAngle = 90.0 - dgOrthoFile.meanSunElevation()
-        earthSunDist = ToaCalculation.calcEarthSunDist(dgOrthoFile.firstLineTime())
+        
+        earthSunDist = ToaCalculation.calcEarthSunDist(dgOrthoFile.
+                                                       firstLineTime())
 
-        calc = "10000 * (((({}*var_0*({}/{})+{})*{}*{})) / ({}*{}))"\
-                .format(gain, dgOrthoFile.abscalFactor(bandName),   \
-                 dgOrthoFile.effectiveBandwidth(bandName), offset,  \
-                 earthSunDist**2, np.pi, calCoeff, np.cos(np.radians(sunAngle)))           
+        calc = "10000 * (((({}*var_0*({}/{})+{})*{}*{})) / ({}*{}))" \
+                .format(gain, dgOrthoFile.abscalFactor(bandName), \
+                 dgOrthoFile.effectiveBandwidth(bandName), offset, \
+                 earthSunDist**2, np.pi, calCoeff, \
+                 np.cos(np.radians(sunAngle)))           
                 
         cmd = ToaCalculation.BASE_SP_CMD + \
               ' image_calc -c "{}" {} -d int16 \
@@ -150,17 +153,8 @@ class ToaCalculation(object):
 
         if not os.path.isfile(toaBandFile):
 
-            # try:
             ToaCalculation.calcToaReflectance(orthoBandFile, 
                                               toaBandFile, 
                                               logger)
  
-            # except:
-            #
-            #     if logger:
-            #         logger.error('ToaCalculation failed for {}'. \
-            #                      format(orthoBandFile))
-            #
-            #     return None
-           
         return toaBandFile
