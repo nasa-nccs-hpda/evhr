@@ -27,11 +27,6 @@ class ToaCalculation(object):
 
     """
 
-    # BASE_SP_CMD = '/usr/local/bin/singularity run -B ' + \
-    #               '/usr/local/bin/singularity ' + \
-    #               '/att/nobackup/iluser/containers/' + \
-    #               'ilab-stereo-pipeline-3.0.0-sandbox/ '
-
     BASE_SP_CMD = ''
     
     # Coefficient values are list of: Calibration coeff, gain, and offset
