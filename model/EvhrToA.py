@@ -6,6 +6,8 @@ import tempfile
 from xml.dom import minidom
 
 from osgeo import ogr
+from osgeo import osr
+from osgeo.osr import CoordinateTransformation
 from osgeo.osr import SpatialReference
 
 from core.model.BaseFile import BaseFile
@@ -41,7 +43,7 @@ class EvhrToA(object):
     #               '/att/nobackup/iluser/containers/' + \
     #               'ilab-stereo-pipeline-3.0.0-sandbox/ '
 
-    BASE_SP_CMD = ''
+    BASE_SP_CMD = '/opt/StereoPipeline/bin/'
     NO_DATA_VALUE = -9999
     
     # -------------------------------------------------------------------------
@@ -267,27 +269,20 @@ class EvhrToA(object):
         # If SRS is not 4326, convert coordinates
         targetSRS = SpatialReference()
         targetSRS.ImportFromEPSG(4326)
-
-        ulx = self._envelope.ulx()
-        uly = self._envelope.uly()
-        lrx = self._envelope.lrx()
-        lry = self._envelope.lry()
         
         if not srs.IsSame(targetSRS):
             
+            targetSRS.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
             xform = CoordinateTransformation(srs, targetSRS)
-            
-            ulx, uly = xform.TransformPoint(self._envelope.ulx(),
-                                            self._envelope.uly())[0:2]
-                                            
-            lrx, lry = xform.TransformPoint(self._envelope.lrx(),
-                                            self._envelope.lry())[0:2]
+            self._envelope.Transform(xform)
 
         # Check if AOI is within UTM boundary
-        if uly >= 84.0 or lry <= -80.0:
+        if self._envelope.uly() >= 84.0 or self._envelope.lry() <= -80.0:
             
             msg = 'Cannot process request with AoI outside of (-80, 84) ' + \
-                  'degrees latitude.  uly = ' + str(uly) + ' lry = ' + str(lry)
+                  'degrees latitude.  uly = ' + \
+                  str(self._envelope.uly()) + ' lry = ' + \
+                  str(self._envelope.lry())
             
             raise RuntimeError(msg)        
 
@@ -299,10 +294,10 @@ class EvhrToA(object):
 
         cmd = 'ogr2ogr' + \
               ' -clipsrc' + \
-              ' ' + str(ulx) + \
-              ' ' + str(lry) + \
-              ' ' + str(lrx) + \
-              ' ' + str(uly) + \
+              ' ' + str(self._envelope.ulx()) + \
+              ' ' + str(self._envelope.lry()) + \
+              ' ' + str(self._envelope.lrx()) + \
+              ' ' + str(self._envelope.uly()) + \
               ' -f "ESRI Shapefile"' + \
               ' -select "Zone_Hemi"' + \
               ' "' + clipFile   + '"' + \
@@ -551,6 +546,7 @@ class EvhrToA(object):
 
             if not os.path.exists(stripBandFile):
                 
+                # /opt/StereoPipeline/bin/dg_mosaic
                 cmd = EvhrToA.BASE_SP_CMD + \
                       'dg_mosaic ' + \
                       '--output-nodata-value 0' + \

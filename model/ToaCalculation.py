@@ -27,7 +27,7 @@ class ToaCalculation(object):
 
     """
 
-    BASE_SP_CMD = ''
+    BASE_SP_CMD = '/opt/StereoPipeline/bin/'
     
     # Coefficient values are list of: Calibration coeff, gain, and offset
     # Using Thuillier 2003 cal vals.
@@ -128,7 +128,7 @@ class ToaCalculation(object):
                  np.cos(np.radians(sunAngle)))           
                 
         cmd = ToaCalculation.BASE_SP_CMD + \
-              ' image_calc -c "{}" {} -d int16 \
+              'image_calc -c "{}" {} -d int16 \
               --output-nodata-value {} -o {}'. \
               format(calc, 
                      orthoBandFile, 

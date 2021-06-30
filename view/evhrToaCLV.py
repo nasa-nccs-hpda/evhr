@@ -4,6 +4,7 @@ import logging
 import sys
 
 from osgeo import gdal
+from osgeo import osr
 from osgeo.osr import SpatialReference
 
 from core.model.Envelope import Envelope
@@ -13,8 +14,7 @@ from evhr.model.EvhrToA import EvhrToA
 # -----------------------------------------------------------------------------
 # main
 #
-# cd evhr-core
-# export PYTHONPATH=`pwd`:`pwd`/core
+# export PYTHONPATH=`pwd`:`pwd`/core:`pwd`/evhr
 # evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 --epsg 4326 -o /att/nobackup/rlgill/SystemTesting/testToA/
 # -----------------------------------------------------------------------------
 def main():
@@ -42,8 +42,14 @@ def main():
     print ('GDAL version:', gdal.__version__)
 
     # Envelope
+    srs4326 = SpatialReference()
+    srs4326.ImportFromEPSG(4326)
     srs = SpatialReference()
     srs.ImportFromEPSG(args.epsg)
+    
+    if srs.IsSame(srs4326):
+        srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    
     env = Envelope()
     env.addPoint(float(args.e[0]), float(args.e[1]), 0, srs)
     env.addPoint(float(args.e[2]), float(args.e[3]), 0, srs)
