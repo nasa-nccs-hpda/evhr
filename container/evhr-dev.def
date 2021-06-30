@@ -3,7 +3,7 @@ FROM: ./core-dev.sif
 
 %help
 ===========================================================================
-	- EVHR (extends -> core) – ILAB dependencies:
+	- EVHR (extends -> core) – ILAB. dependencies:
 ===========================================================================
 
 %post
