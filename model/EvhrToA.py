@@ -588,7 +588,6 @@ class EvhrToA(object):
 
             toaBands.append(ToaCalculation.run(orthoBand,
                                                self._toaDir,
-                                               stripBand,
                                                self._logger))
 
         self._mergeBands(toaBands, toaName)
