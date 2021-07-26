@@ -122,7 +122,7 @@ class EvhrToA(object):
         cmd += ' "' + tempClipFile + '"' + \
                ' "' + shpFile + '"'
 
-        sCmd = SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, self._logger, True)
 
         xml = minidom.parse(tempClipFile)
         features = xml.getElementsByTagName('gml:featureMember')
@@ -354,7 +354,7 @@ class EvhrToA(object):
                      outFileName,
                      ' '.join(bandFiles))
 
-        sCmd = SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, self._logger, True)
 
         for bandFile in bandFiles:
             os.remove(bandFile)
@@ -437,7 +437,7 @@ class EvhrToA(object):
             outDemName.strip('-adj.tif') + \
             ' --reverse-adjustment'
 
-        sCmd = SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, self._logger, True)
 
         for log in glob.glob(os.path.join(self._demDir, '*log*.txt')):
             os.remove(log)  # remove dem_geoid log file
@@ -488,7 +488,7 @@ class EvhrToA(object):
                 ' ' + origDgFile.xmlFileName + \
                 ' ' + orthoFileTemp
 
-            sCmd = SystemCommand(cmd, self._logger, True)
+            SystemCommand(cmd, self._logger, True)
 
             # Convert NoData to settings value, set output type to Int16
             cmd = EvhrToA.BASE_SP_CMD + \
@@ -496,7 +496,7 @@ class EvhrToA(object):
                 --output-nodata-value {} -o {}'. \
                 format(orthoFileTemp, EvhrToA.NO_DATA_VALUE, orthoFile)
 
-            sCmd = SystemCommand(cmd, self._logger, True)
+            SystemCommand(cmd, self._logger, True)
 
             # Copy xml to accompany ortho file (needed for TOA)
             shutil.copy(origDgFile.xmlFileName,
@@ -620,7 +620,7 @@ class EvhrToA(object):
                       format(stripBandFile.replace('.r100.tif', ''),
                              bandScenesStr)
 
-                sCmd = SystemCommand(cmd, self._logger, True)
+                SystemCommand(cmd, self._logger, True)
 
             DgFile(stripBandFile).setBandName(bandName)
             stripBandList.append(stripBandFile)
