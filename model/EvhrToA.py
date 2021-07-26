@@ -24,6 +24,7 @@ from evhr.model.ToaCalculation import ToaCalculation
 #
 # run
 #   _collectImagesByStrip
+#   _computeEnvelope
 #   _runOneStrip
 #       _createStrip
 #           _scenesToStripFromBandList
@@ -38,21 +39,15 @@ from evhr.model.ToaCalculation import ToaCalculation
 # -----------------------------------------------------------------------------
 class EvhrToA(object):
 
-    # BASE_SP_CMD = '/usr/local/bin/singularity run -B ' + \
-    #               '/usr/local/bin/singularity ' + \
-    #               '/att/nobackup/iluser/containers/' + \
-    #               'ilab-stereo-pipeline-3.0.0-sandbox/ '
-
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
     NO_DATA_VALUE = -9999
 
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, envelope, outDir, logger=None):
+    def __init__(self, outDir, logger=None):
 
         self._logger = logger
-        self._envelope = envelope
 
         # Output directory
         self._outDir = BaseFile(outDir).fileName()  # BaseFile tests validity.
@@ -60,8 +55,7 @@ class EvhrToA(object):
         if not os.path.isdir(self._outDir):
             raise RuntimeError(self._outDir + ' must be a directory.')
 
-        # The output SRS must be UTM.
-        self._outSrsProj4 = self._getUtmSrs()
+        self._outSrsProj4 = None
 
         # Ensure the ortho and toa directories exist.
         self._bandDir = os.path.join(self._outDir, '1-bands')
@@ -78,9 +72,7 @@ class EvhrToA(object):
 
         if self._logger:
 
-            self._logger.info('Envelope: ' + str(self._envelope))
             self._logger.info('Output directory: ' + self._outDir)
-            self._logger.info('Output SRS:' + self._outSrsProj4)
             self._logger.info('Band directory: ' + self._bandDir)
             self._logger.info('Strip directory: ' + self._stripDir)
             self._logger.info('DEM directory: ' + self._demDir)
@@ -147,23 +139,10 @@ class EvhrToA(object):
     #
     # {strip1: [image, image, ...], strip2: [image, image, ...], ...}
     # -------------------------------------------------------------------------
-    def _collectImagesByStrip(self):
+    def _collectImagesByStrip(self, sceneFiles):
 
         if self._logger:
             self._logger.info('In collectImagesByStrip')
-
-        fpq = FootprintsQuery(logger=self._logger)
-        fpq.addAoI(self._envelope)
-        fpq.setMinimumOverlapInDegrees()
-
-        MAXIMUM_SCENES = 100
-        fpq.setMaximumScenes(MAXIMUM_SCENES)
-
-        sceneFiles = fpq.getScenes()
-        sceneFiles.sort()
-
-        if not sceneFiles and self._logger:
-            self._logger.error('There were no level 1B scenes.')
 
         # Aggregate the scenes into strips.
         stripsWithScenes = {}
@@ -190,9 +169,34 @@ class EvhrToA(object):
 
         return stripsWithScenes
 
+    # -------------------------------------------------------------------------
+    # _computeEnvelope
+    # -------------------------------------------------------------------------
+    def _computeEnvelope(self, sceneList):
+
+        if self._logger:
+            self._logger.info('In _computeEnvelope')
+
+        dgf1 = DgFile(sceneList[0])
+        env = dgf1.envelope()
+
+        for scene in sceneList[1:]:
+
+            try:
+                dgf = DgFile(scene)
+                env.addPoint(dgf._ulx, dgf._uly, 0.0, dgf.srs())
+                env.addPoint(dgf._lrx, dgf._lry, 0.0, dgf.srs())
+
+            except TypeError:
+
+                import pdb
+                pdb.set_trace()
+                print('scene', scene)
+
+        return env
+
     # --------------------------------------------------------------------------
     # _createDemForOrthos
-    #
     # --------------------------------------------------------------------------
     def _createDemForOrthos(self, envelope):
 
@@ -260,13 +264,13 @@ class EvhrToA(object):
     #
     # This method returns the UTM SRS definition in PROJ4 format.
     # -------------------------------------------------------------------------
-    def _getUtmSrs(self):
+    def _getUtmSrs(self, envelope):
 
         # If it is already in UTM, just return the PROJ4 string.
-        srs = self._envelope.GetSpatialReference()
+        srs = envelope.GetSpatialReference()
 
         if srs.IsProjected() and 'UTM' in srs.GetAttrValue('PROJCS'):
-            return self.GetSpatialReference().ExportToProj4()
+            return self.GetSpatialRef().ExportToProj4()
 
         # If SRS is not 4326, convert coordinates
         targetSRS = SpatialReference()
@@ -276,15 +280,15 @@ class EvhrToA(object):
 
             targetSRS.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
             xform = CoordinateTransformation(srs, targetSRS)
-            self._envelope.Transform(xform)
+            envelope.Transform(xform)
 
         # Check if AOI is within UTM boundary
-        if self._envelope.uly() >= 84.0 or self._envelope.lry() <= -80.0:
+        if envelope.uly() >= 84.0 or envelope.lry() <= -80.0:
 
             msg = 'Cannot process request with AoI outside of (-80, 84) ' + \
                   'degrees latitude.  uly = ' + \
-                  str(self._envelope.uly()) + ' lry = ' + \
-                  str(self._envelope.lry())
+                  str(envelope.uly()) + ' lry = ' + \
+                  str(envelope.lry())
 
             raise RuntimeError(msg)
 
@@ -296,10 +300,10 @@ class EvhrToA(object):
 
         cmd = 'ogr2ogr' + \
               ' -clipsrc' + \
-              ' ' + str(self._envelope.ulx()) + \
-              ' ' + str(self._envelope.lry()) + \
-              ' ' + str(self._envelope.lrx()) + \
-              ' ' + str(self._envelope.uly()) + \
+              ' ' + str(envelope.ulx()) + \
+              ' ' + str(envelope.lry()) + \
+              ' ' + str(envelope.lrx()) + \
+              ' ' + str(envelope.uly()) + \
               ' -f "ESRI Shapefile"' + \
               ' -select "Zone_Hemi"' + \
               ' "' + clipFile + '"' + \
@@ -503,14 +507,70 @@ class EvhrToA(object):
         return orthoFile
 
     # -------------------------------------------------------------------------
+    # _queryScenes
+    # -------------------------------------------------------------------------
+    def _queryScenes(self, envelope):
+
+        fpq = FootprintsQuery(logger=self._logger)
+        fpq.addAoI(envelope)
+        fpq.setMinimumOverlapInDegrees()
+
+        MAXIMUM_SCENES = 100
+        fpq.setMaximumScenes(MAXIMUM_SCENES)
+
+        sceneFiles = fpq.getScenes()
+
+        if not sceneFiles and self._logger:
+            self._logger.error('There were no level 1B scenes.')
+
+        return sceneFiles
+
+    # -------------------------------------------------------------------------
     # run
     # -------------------------------------------------------------------------
-    def run(self):
+    def run(self, envelope=None, sceneList=None):
 
         if self._logger:
             self._logger.info('In run')
 
-        stripsWithScenes = self._collectImagesByStrip()
+        # ---
+        # We need both an envelope and a scene list.  If there is no envelope,
+        # expect a scene list and compute its envelope.  If there is no scene
+        # list, expect an envelope and query for scenes within it.
+        # ---
+        if not envelope and not sceneList:
+
+            raise RuntimeError('Either an envelope or a scene list ' +
+                               'must be provided.')
+
+        if not sceneList:
+            sceneList = self._queryScenes(envelope)
+
+        else:
+
+            # ---
+            # Convert Path objects to strings.  The Path class is new in
+            # Python 3.2.  We should use them extensively.  There isn't time
+            # to do that now, so cast them to strings.
+            # ---
+            sceneList = [str(scene) for scene in sceneList]
+
+        sceneList.sort()
+
+        # ---
+        # _collectImagesByStrip and _computeEnvelope both instantiate each
+        # scene as a DgFile.  It will be efficient to reuse the DgFiles from
+        # _collectImagesByStrip, although this method will be a little more
+        # difficult to read.  Relative to the strip processing below, this
+        # only takes a fraction of the overall time.
+        # ---
+        stripsWithScenes = self._collectImagesByStrip(sceneList)
+
+        if not envelope:
+            envelope = self._computeEnvelope(sceneList)
+
+        # The output SRS must be UTM.
+        self._outSrsProj4 = self._getUtmSrs(envelope)
 
         for key in iter(stripsWithScenes):
             self._runOneStrip(key, stripsWithScenes[key])
