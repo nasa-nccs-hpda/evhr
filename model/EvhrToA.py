@@ -251,8 +251,11 @@ class EvhrToA(object):
                               ' for {} ({} input scenes)'.
                               format(stripName, len(stripScenes)))
 
+        # bands = ['BAND_P'] if 'P1BS' in stripName else \
+        #         ['BAND_B', 'BAND_G', 'BAND_R', 'BAND_N']
+        
         bands = ['BAND_P'] if 'P1BS' in stripName else \
-                ['BAND_B', 'BAND_G', 'BAND_R', 'BAND_N']
+                DgFile(stripScenes[0]).bandNameList
 
         stripBandList = \
             self._scenesToStripFromBandList(stripName, stripScenes, bands)
