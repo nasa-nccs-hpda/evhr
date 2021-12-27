@@ -5,6 +5,7 @@ import shutil
 import tempfile
 from xml.dom import minidom
 
+from osgeo import gdal
 from osgeo import ogr
 from osgeo import osr
 from osgeo.osr import CoordinateTransformation
@@ -40,6 +41,11 @@ from evhr.model.ToaCalculation import ToaCalculation
 class EvhrToA(object):
 
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
+    
+    # BASE_SP_CMD = '/opt/StereoPipeline/' + \
+    #               'StereoPipeline-2.7.0-2020-07-29-x86_64-Linux/bin/'
+    
+    
     NO_DATA_VALUE = -9999
 
     # -------------------------------------------------------------------------
@@ -81,11 +87,15 @@ class EvhrToA(object):
 
     # --------------------------------------------------------------------------
     # clipShp
+    #
+    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
+    #     -> mosaicAndClipDemTiles -> clipShp
     # --------------------------------------------------------------------------
-    def _clipShp(self, shpFile, envelope):
+    @staticmethod
+    def _clipShp(shpFile, envelope, logger):
 
-        if self._logger:
-            self._logger.info('Clipping Shapefile.')
+        if logger:
+            logger.info('Clipping Shapefile.')
 
         # Create a temporary file for the clip output.
         tempClipFile = tempfile.mkstemp()[1]
@@ -122,7 +132,7 @@ class EvhrToA(object):
         cmd += ' "' + tempClipFile + '"' + \
                ' "' + shpFile + '"'
 
-        SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, logger, True)
 
         xml = minidom.parse(tempClipFile)
         features = xml.getElementsByTagName('gml:featureMember')
@@ -158,7 +168,7 @@ class EvhrToA(object):
                     stripsWithScenes[stripID] = []
 
                 if sceneFile not in stripsWithScenes[stripID]:
-                    stripsWithScenes[stripID].append(sceneFile)
+                    stripsWithScenes[stripID].append(dgf)
 
             else:
 
@@ -177,31 +187,25 @@ class EvhrToA(object):
         if self._logger:
             self._logger.info('In _computeEnvelope')
 
-        dgf1 = DgFile(sceneList[0])
-        env = dgf1.envelope()
+        env = sceneList[0].envelope()
 
-        for scene in sceneList[1:]:
+        for dgf in sceneList[1:]:
 
-            try:
-                dgf = DgFile(scene)
-                env.addPoint(dgf._ulx, dgf._uly, 0.0, dgf.srs())
-                env.addPoint(dgf._lrx, dgf._lry, 0.0, dgf.srs())
-
-            except TypeError:
-
-                import pdb
-                pdb.set_trace()
-                print('scene', scene)
+            env.addPoint(dgf._ulx, dgf._uly, 0.0, dgf.srs())
+            env.addPoint(dgf._lrx, dgf._lry, 0.0, dgf.srs())
 
         return env
 
     # --------------------------------------------------------------------------
     # _createDemForOrthos
+    #
+    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     # --------------------------------------------------------------------------
-    def _createDemForOrthos(self, envelope):
+    @staticmethod
+    def _createDemForOrthos(envelope, demDir, logger):
 
-        if self._logger:
-            self._logger.info('Creating DEM for orthorectification.')
+        if logger:
+            logger.info('Creating DEM for orthorectification.')
 
         # If there is already a clipped DEM for this bounding box, use it.
         demName = 'dem-' + \
@@ -212,7 +216,7 @@ class EvhrToA(object):
             str(envelope.GetSpatialReference().GetAuthorityCode(None)) + \
             '-adj.tif'
 
-        demName = os.path.join(self._demDir, demName)
+        demName = os.path.join(demDir, demName)
 
         if os.path.exists(demName):
             return demName
@@ -236,26 +240,32 @@ class EvhrToA(object):
         xEnv = Envelope()
         xEnv.addPoint(xUlx, xUly, 0.0, tempEnv.GetSpatialReference())
         xEnv.addPoint(xLrx, xLry, 0.0, tempEnv.GetSpatialReference())
-        self._mosaicAndClipDemTiles(demName, xEnv)
+        EvhrToA._mosaicAndClipDemTiles(demName, xEnv, demDir, logger)
 
         return demName
 
     # -------------------------------------------------------------------------
     # _createStrip
+    # _runOneStrip -> _createStrip
     # -------------------------------------------------------------------------
-    def _createStrip(self, stripName, stripScenes):
+    @staticmethod
+    def _createStrip(stripName, stripScenes, bandDir, stripDir, logger):
 
-        if self._logger:
+        if logger:
 
-            self._logger.info('Extracting bands and mosaicking to strips' +
-                              ' for {} ({} input scenes)'.
-                              format(stripName, len(stripScenes)))
+            logger.info('Extracting bands and mosaicking to strips' +
+                        ' for {} ({} input scenes)'.
+                        format(stripName, len(stripScenes)))
 
         bands = ['BAND_P'] if 'P1BS' in stripName else \
-            DgFile(stripScenes[0]).bandNameList
+            stripScenes[0].bandNameList
 
-        stripBandList = \
-            self._scenesToStripFromBandList(stripName, stripScenes, bands)
+        stripBandList = EvhrToA._scenesToStripFromBandList(stripName,           
+                                                           stripScenes,
+                                                           bands, 
+                                                           bandDir,
+                                                           stripDir,
+                                                           logger)
 
         return stripBandList
 
@@ -341,11 +351,14 @@ class EvhrToA(object):
 
     # --------------------------------------------------------------------------
     # mergeBands
+    #
+    # stripToToA -> mergeBands
     # --------------------------------------------------------------------------
-    def _mergeBands(self, bandFiles, outFileName):
+    @staticmethod
+    def _mergeBands(bandFiles, outFileName, logger):
 
-        if self._logger:
-            self._logger.info('Merging bands into ' + str(outFileName))
+        if logger:
+            logger.info('Merging bands into ' + str(outFileName))
 
         cmd = 'gdal_merge.py -co COMPRESS=LZW -co BIGTIFF=YES -ot Int16 \
               -separate -init {} -a_nodata {} -o {} {}'. \
@@ -354,8 +367,50 @@ class EvhrToA(object):
                      outFileName,
                      ' '.join(bandFiles))
 
-        SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, logger, True)
 
+        # bandDs = gdal.Open(bandFiles[0])
+        # driver = gdal.GetDriverByName('GTiff')
+        #
+        # ds = driver.Create(outFileName,
+        #                    bandDs.RasterXSize,
+        #                    bandDs.RasterYSize,
+        #                    len(bandFiles),
+        #                    gdal.GDT_Int16,
+        #                    options=['COMPRESS=LZW',
+        #                             'BIGTIFF=YES'])
+        #
+        # try:
+        #
+        #     ds.SetSpatialRef(bandDs.GetSpatialRef())
+        #     ds.SetProjection(bandDs.GetProjectionRef())
+        #
+        #     # Add the bands.
+        #     outBandNum = 0
+        #
+        #     for bandFile in bandFiles:
+        #
+        #         # Create the output band.
+        #         outBandNum += 1
+        #         outBand = ds.GetRasterBand(outBandNum)
+        #         outBand.SetNoDataValue(EvhrToA.NO_DATA_VALUE)
+        #
+        #         baseName = os.path.basename(bandFile)
+        #         nameNoExt = baseName.split('.')[0]
+        #         bandName = '-'.join(nameNoExt.split('_')[-2:])
+        #         outBand.SetDescription(bandName)
+        #
+        #         # Write the input raster to the output band.
+        #         outBand.WriteRaster(0,
+        #                             0,
+        #                             bandDs.RasterXSize,
+        #                             bandDs.RasterYSize,
+        #                             gdal.Open(bandFile).ReadRaster())
+        #
+        # except:
+        #     os.remove(outFileName)
+            
+        # Delete the band files.
         for bandFile in bandFiles:
             os.remove(bandFile)
 
@@ -367,11 +422,15 @@ class EvhrToA(object):
     #
     # To build the ASTERGDEM index file:
     # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp /att/pubrepo/DEM/ASTERGDEM/v2/*dem.tif
+    #
+    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
+    #     -> mosaicAndClipDemTiles
     # --------------------------------------------------------------------------
-    def _mosaicAndClipDemTiles(self, outDemName, envelope):
+    @staticmethod
+    def _mosaicAndClipDemTiles(outDemName, envelope, demDir, logger):
 
-        if self._logger:
-            self._logger.info('Creating DEM ' + str(outDemName))
+        if logger:
+            logger.info('Creating DEM ' + str(outDemName))
 
         outDemNameTemp = outDemName.replace('.tif', '-temp.tif')
 
@@ -395,7 +454,7 @@ class EvhrToA(object):
                              'ASTERGDEM/astergdem.shp')
 
         # Get the tile Shapefile and intersect it with the AoI.
-        features = self._clipShp(SHP_INDEX, envelope)
+        features = EvhrToA._clipShp(SHP_INDEX, envelope, logger)
 
         if not features or len(features) == 0:
 
@@ -428,7 +487,7 @@ class EvhrToA(object):
               ' ' + str(envelope.lry()) + \
               ' ' + ' '.join(tiles)
 
-        sCmd = SystemCommand(cmd, self._logger, True)
+        sCmd = SystemCommand(cmd, logger, True)
 
         # Run mosaicked DEM through geoid correction
         cmd = EvhrToA.BASE_SP_CMD + \
@@ -437,75 +496,111 @@ class EvhrToA(object):
             outDemName.strip('-adj.tif') + \
             ' --reverse-adjustment'
 
-        SystemCommand(cmd, self._logger, True)
+        SystemCommand(cmd, logger, True)
 
-        for log in glob.glob(os.path.join(self._demDir, '*log*.txt')):
+        for log in glob.glob(os.path.join(demDir, '*log*.txt')):
             os.remove(log)  # remove dem_geoid log file
 
     # --------------------------------------------------------------------------
     # _orthoOne
+    #
+    # run -> processStrips -> runOneStrip -> stripToToa -> orthoOne
     # --------------------------------------------------------------------------
-    def _orthoOne(self, bandFile, origDgFile):
+    @staticmethod
+    def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, logger):
 
-        baseName = os.path.splitext(os.path.basename(bandFile))[0]
-        orthoFile = os.path.join(self._orthoDir, baseName + '-ortho.tif')
+        baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
+        orthoFile = os.path.join(orthoDir, baseName + '-ortho.tif')
+        orthoDg = None
 
         if not os.path.exists(orthoFile):
 
-            if self._logger:
+            if logger:
 
-                self._logger.info('Orthorectifying ' +
-                                  str(bandFile) +
-                                  ' to ' +
-                                  orthoFile)
+                logger.info('Orthorectifying ' + str(bandFile) + ' to ' +
+                            orthoFile)
 
             try:
 
-                clippedDEM = self._createDemForOrthos(origDgFile.envelope())
+                clippedDEM = EvhrToA._createDemForOrthos(bandFile.envelope(),
+                                                         demDir,
+                                                         logger)
 
             except RuntimeError as e:
 
-                msg = str(e) + ' Band file: ' + str(bandFile) + \
-                      ' DgFile: ' + str(origDgFile.fileName)
-
-                raise RuntimeError(msg)
+                raise RuntimeError(str(e) + ' Band file: ' + str(bandFile))
 
             # Orthorectify.
             orthoFileTemp = orthoFile.replace('.tif', '-temp.tif')
-            bandName = DgFile(bandFile).getBandName()
             outRes = 2
 
-            if origDgFile.isPanchromatic():
+            if bandFile.isPanchromatic():
                 outRes = 1
 
             cmd = EvhrToA.BASE_SP_CMD + \
                 'mapproject --nodata-value 0' + \
                 ' --threads=2 -t rpc' + \
                 ' --mpp={}'.format(outRes) + \
-                ' --t_srs "{}"'.format(self._outSrsProj4) + \
+                ' --t_srs "{}"'.format(outSrsProj4) + \
                 ' ' + clippedDEM + \
-                ' ' + bandFile + \
-                ' ' + origDgFile.xmlFileName + \
+                ' ' + bandFile.fileName() + \
+                ' ' + bandFile.xmlFileName + \
                 ' ' + orthoFileTemp
 
-            SystemCommand(cmd, self._logger, True)
+            try:
+                SystemCommand(cmd, logger, True)
 
-            # Convert NoData to settings value, set output type to Int16
-            cmd = EvhrToA.BASE_SP_CMD + \
-                'image_calc -c "var_0" {} -d int16   \
-                --output-nodata-value {} -o {}'. \
-                format(orthoFileTemp, EvhrToA.NO_DATA_VALUE, orthoFile)
+                # Convert NoData to settings value, set output type to Int16
+                cmd = EvhrToA.BASE_SP_CMD + \
+                    'image_calc -c "var_0" {} -d int16   \
+                    --output-nodata-value {} -o {}'. \
+                    format(orthoFileTemp, EvhrToA.NO_DATA_VALUE, orthoFile)
 
-            SystemCommand(cmd, self._logger, True)
+                SystemCommand(cmd, logger, True)
 
+            except:
+                os.remove(orthoFile)
+                
+            os.remove(orthoFileTemp)
+            
             # Copy xml to accompany ortho file (needed for TOA)
-            shutil.copy(origDgFile.xmlFileName,
+            shutil.copy(bandFile.xmlFileName,
                         orthoFile.replace('.tif', '.xml'))
 
-            DgFile(orthoFile).setBandName(bandName)
+            orthoDg = DgFile(orthoFile)
+            orthoDg.setBandName(bandFile.getBandName())
 
-        return orthoFile
+        else:
+            
+            try:
+                orthoDg = DgFile(orthoFile)
+            
+            except:
+                os.remove(orthoFile)
+                
+        return orthoDg
 
+    # -------------------------------------------------------------------------
+    # processStrips
+    #
+    # run -> processStrips
+    # -> runOneStrip
+    # -------------------------------------------------------------------------
+    def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
+                      demDir, toaDir, outSrsProj4, logger):
+                      
+        for key in iter(stripsWithScenes):
+
+            EvhrToA._runOneStrip(key,
+                                 stripsWithScenes[key],
+                                 bandDir,
+                                 stripDir,
+                                 orthoDir,
+                                 demDir,
+                                 toaDir,
+                                 outSrsProj4,
+                                 logger)
+                      
     # -------------------------------------------------------------------------
     # _queryScenes
     # -------------------------------------------------------------------------
@@ -527,6 +622,11 @@ class EvhrToA(object):
 
     # -------------------------------------------------------------------------
     # run
+    # -> queryScenes
+    # -> collectImagesByStrip
+    # -> computeEnvelope
+    # -> getUtmSrs
+    # -> processStrips
     # -------------------------------------------------------------------------
     def run(self, envelope=None, sceneList=None):
 
@@ -565,27 +665,52 @@ class EvhrToA(object):
         # only takes a fraction of the overall time.
         # ---
         stripsWithScenes = self._collectImagesByStrip(sceneList)
-
+        
         if not envelope:
-            envelope = self._computeEnvelope(sceneList)
+            
+            sceneSet = set()
+            
+            for key in stripsWithScenes.keys():
+                sceneSet |= set(stripsWithScenes[key])
+            
+            envelope = self._computeEnvelope(list(sceneSet))
 
         # The output SRS must be UTM.
         self._outSrsProj4 = self._getUtmSrs(envelope)
 
-        for key in iter(stripsWithScenes):
-            self._runOneStrip(key, stripsWithScenes[key])
+        self.processStrips(stripsWithScenes,
+                           self._bandDir,
+                           self._stripDir,
+                           self._orthoDir,
+                           self._demDir,
+                           self._toaDir,
+                           self._outSrsProj4,
+                           self._logger)        
 
     # -------------------------------------------------------------------------
-    # runOne
+    # runOneStrip
+    #
+    # run -> processStrips -> runOneStrip
+    # -> createStrip
+    # -> stripToToA
     # -------------------------------------------------------------------------
-    def _runOneStrip(self, stripID, scenes):
+    @staticmethod
+    def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir, 
+                     toaDir, outSrsProj4, logger):
 
-        if self._logger:
-            self._logger.info('In runOneStrip')
+        if logger:
+            logger.info('In runOneStrip')
 
-        imageForEachBandInStrip = self._createStrip(stripID, scenes)
-        toaName = os.path.join(self._toaDir, stripID + '-toa.tif')
-        self._stripToToa(imageForEachBandInStrip, toaName)
+        imageForEachBandInStrip = EvhrToA._createStrip(stripID, 
+                                                       scenes, 
+                                                       bandDir, 
+                                                       stripDir,
+                                                       logger)
+        
+        toaName = os.path.join(toaDir, stripID + '-toa.tif')
+        
+        EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
+                            demDir, toaDir, outSrsProj4, logger)
 
     # --------------------------------------------------------------------------
     # scenesToStripFromBandList
@@ -594,25 +719,38 @@ class EvhrToA(object):
     #
     # Output:  a mosaic of all the scenes for each band:  a mosaic containing
     # band1 from every scene, a mosaic containing band2 from every scene ...
+    #
+    # run -> processStrips -> runOneStrip -> createStrip
     # --------------------------------------------------------------------------
-    def _scenesToStripFromBandList(self, stripName, stripScenes, bands):
+    @staticmethod
+    def _scenesToStripFromBandList(stripName, stripScenes, bands, bandDir,
+                                   stripDir, logger):
 
         stripBandList = []  # Length of list = number of bands
 
         for bandName in bands:
 
-            bandScenes = [DgFile(scene).getBand(self._bandDir, bandName)
+            if logger:
+                
+                logger.info('Reading band ' + bandName + \
+                            ' for all scenes in strip ' + stripName)
+                
+            bandScenes = [scene.getBand(bandDir, bandName)
                           for scene in stripScenes]
 
             bandScenesStr = ' '.join(bandScenes)
 
             stripBandFile = \
-                os.path.join(self._stripDir,
+                os.path.join(stripDir,
                              '{}_{}.r100.tif'.format(stripName, bandName))
 
             if not os.path.exists(stripBandFile):
 
-                # /opt/StereoPipeline/bin/dg_mosaic
+                if logger:
+                
+                    logger.info('Mosaicking all of band ' + bandName + \
+                                ' scenes in strip ' + stripName)
+
                 cmd = EvhrToA.BASE_SP_CMD + \
                       'dg_mosaic ' + \
                       '--output-nodata-value 0' + \
@@ -620,21 +758,26 @@ class EvhrToA(object):
                       format(stripBandFile.replace('.r100.tif', ''),
                              bandScenesStr)
 
-                SystemCommand(cmd, self._logger, True)
+                SystemCommand(cmd, logger, True)
 
-            DgFile(stripBandFile).setBandName(bandName)
-            stripBandList.append(stripBandFile)
+            stripBandDg = DgFile(stripBandFile)
+            stripBandDg.setBandName(bandName)
+            stripBandList.append(stripBandDg)
 
         # Return the list of band strips.
         return stripBandList
 
     # -------------------------------------------------------------------------
     # _stripToToa
+    #
+    # run -> runOneStrip -> stripToToa
     # -------------------------------------------------------------------------
-    def _stripToToa(self, imageForEachBandInStrip, toaName):
+    @staticmethod
+    def _stripToToa(imageForEachBandInStrip, toaName, orthoDir, demDir, toaDir,
+                    outSrsProj4, logger):
 
-        if self._logger:
-            self._logger.info('In _stripToToa, processing ' + toaName)
+        if logger:
+            logger.info('In _stripToToa, processing ' + toaName)
 
         if os.path.exists(toaName):
             return
@@ -643,14 +786,15 @@ class EvhrToA(object):
 
         for stripBand in imageForEachBandInStrip:
 
-            dgStrip = DgFile(stripBand)
-            orthoBand = self._orthoOne(stripBand, dgStrip)
+            orthoBandDg = EvhrToA._orthoOne(stripBand, 
+                                            orthoDir,
+                                            demDir,
+                                            outSrsProj4, 
+                                            logger)
 
-            toaBands.append(ToaCalculation.run(orthoBand,
-                                               self._toaDir,
-                                               self._logger))
+            toaBands.append(ToaCalculation.run(orthoBandDg,
+                                               toaDir,
+                                               logger))
 
-        self._mergeBands(toaBands, toaName)
-
-        shutil.copy(DgFile(orthoBand).xmlFileName,
-                    toaName.replace('.tif', '.xml'))
+        EvhrToA._mergeBands(toaBands, toaName, logger)
+        shutil.copy(orthoBandDg.xmlFileName, toaName.replace('.tif', '.xml'))

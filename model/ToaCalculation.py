@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from core.model.DgFile import DgFile
+# from core.model.DgFile import DgFile
 from core.model.SystemCommand import SystemCommand
 
 
@@ -106,9 +106,9 @@ class ToaCalculation(object):
     # calcToaReflectance()
     # --------------------------------------------------------------------------
     @staticmethod
-    def calcToaReflectance(orthoBandFile, toaBandFile, logger=None):
+    def calcToaReflectance(dgOrthoFile, toaBandFile, logger=None):
 
-        dgOrthoFile = DgFile(orthoBandFile)
+        # dgOrthoFile = DgFile(orthoBandFile)
 
         bandName = dgOrthoFile.getBandName()
         key = '{}_{}'.format(dgOrthoFile.sensor(), bandName)
@@ -131,10 +131,11 @@ class ToaCalculation(object):
 
         cmd = ToaCalculation.BASE_SP_CMD + \
             'image_calc -c "{}" {} -d int16 \
-            --output-nodata-value {} -o {}'. \
+            --output-nodata-value {} --mo bandName={} -o {}'. \
             format(calc,
-                   orthoBandFile,
+                   dgOrthoFile.fileName(),
                    ToaCalculation.NO_DATA_VALUE,
+                   bandName,
                    toaBandFile)
 
         sCmd = SystemCommand(cmd, logger, True)
@@ -143,14 +144,16 @@ class ToaCalculation(object):
     # run()
     # --------------------------------------------------------------------------
     @staticmethod
-    def run(orthoBandFile, outputDir, logger=None):
+    def run(orthoBandDg, outputDir, logger=None):
 
-        baseName = os.path.basename(orthoBandFile).replace('.tif', '-toa.tif')
+        baseName = os.path.basename(orthoBandDg.fileName()).\
+                                    replace('.tif', '-toa.tif')
+
         toaBandFile = os.path.join(outputDir, baseName)
 
         if not os.path.isfile(toaBandFile):
 
-            ToaCalculation.calcToaReflectance(orthoBandFile,
+            ToaCalculation.calcToaReflectance(orthoBandDg,
                                               toaBandFile,
                                               logger)
 
