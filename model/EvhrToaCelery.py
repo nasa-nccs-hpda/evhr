@@ -52,20 +52,19 @@ class EvhrToaCelery(EvhrToA):
     # -------------------------------------------------------------------------
     @staticmethod
     @app.task(serializer='pickle')
-    def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir, 
+    def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
                      toaDir, outSrsProj4, logger):
 
         if logger:
             logger.info('In runOneStrip')
 
-        imageForEachBandInStrip = EvhrToA._createStrip(stripID, 
-                                                       scenes, 
-                                                       bandDir, 
+        imageForEachBandInStrip = EvhrToA._createStrip(stripID,
+                                                       scenes,
+                                                       bandDir,
                                                        stripDir,
                                                        logger)
-        
+
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
-        
+
         EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
                             demDir, toaDir, outSrsProj4, logger)
-

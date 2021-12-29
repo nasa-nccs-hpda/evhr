@@ -14,7 +14,7 @@ class ToaCalculation(object):
     offsets in addition to solar exoatmospheric irradiance (calibration coeff)
 
     L = gain * orthoDN * (abscalFactor/bandwidth) + offset --> image
-    Reflectance = (L * earthSunDist^2 * pi)/ (calCoeff * cos(sunAngle))--> image
+    Reflectance = (L * earthSunDist^2 * pi)/ (calCoeff * cos(sunAngle))-->image
     And scale by 10000
 
     So to obtain Reflectance image in one step:

@@ -89,12 +89,12 @@ def main():
     if args.celery:
 
         with ILProcessController() as processController:
-            
+
             toa = EvhrToaCelery(args.o, logger)
             toa.run(env, args.scenes)
 
     else:
-        
+
         toa = EvhrToA(args.o, logger)
         toa.run(env, args.scenes)
 

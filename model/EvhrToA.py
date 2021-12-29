@@ -41,11 +41,10 @@ from evhr.model.ToaCalculation import ToaCalculation
 class EvhrToA(object):
 
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
-    
+
     # BASE_SP_CMD = '/opt/StereoPipeline/' + \
     #               'StereoPipeline-2.7.0-2020-07-29-x86_64-Linux/bin/'
-    
-    
+
     NO_DATA_VALUE = -9999
 
     # -------------------------------------------------------------------------
@@ -159,7 +158,16 @@ class EvhrToA(object):
 
         for sceneFile in sceneFiles:
 
-            dgf = DgFile(sceneFile, self._logger)
+            try:
+                dgf = DgFile(sceneFile, self._logger)
+                
+            except RuntimeError as e:
+                
+                if self._logger:
+                    self._logger.warn(e)
+
+                continue
+                
             stripID = dgf.getStripName()
 
             if stripID:
@@ -260,9 +268,9 @@ class EvhrToA(object):
         bands = ['BAND_P'] if 'P1BS' in stripName else \
             stripScenes[0].bandNameList
 
-        stripBandList = EvhrToA._scenesToStripFromBandList(stripName,           
+        stripBandList = EvhrToA._scenesToStripFromBandList(stripName,
                                                            stripScenes,
-                                                           bands, 
+                                                           bands,
                                                            bandDir,
                                                            stripDir,
                                                            logger)
@@ -409,7 +417,7 @@ class EvhrToA(object):
         #
         # except:
         #     os.remove(outFileName)
-            
+
         # Delete the band files.
         for bandFile in bandFiles:
             os.remove(bandFile)
@@ -558,11 +566,11 @@ class EvhrToA(object):
 
                 SystemCommand(cmd, logger, True)
 
-            except:
+            except Exception:
                 os.remove(orthoFile)
-                
+
             os.remove(orthoFileTemp)
-            
+
             # Copy xml to accompany ortho file (needed for TOA)
             shutil.copy(bandFile.xmlFileName,
                         orthoFile.replace('.tif', '.xml'))
@@ -571,13 +579,13 @@ class EvhrToA(object):
             orthoDg.setBandName(bandFile.getBandName())
 
         else:
-            
+
             try:
                 orthoDg = DgFile(orthoFile)
-            
-            except:
+
+            except Exception:
                 os.remove(orthoFile)
-                
+
         return orthoDg
 
     # -------------------------------------------------------------------------
@@ -588,7 +596,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
                       demDir, toaDir, outSrsProj4, logger):
-                      
+
         for key in iter(stripsWithScenes):
 
             EvhrToA._runOneStrip(key,
@@ -600,7 +608,7 @@ class EvhrToA(object):
                                  toaDir,
                                  outSrsProj4,
                                  logger)
-                      
+
     # -------------------------------------------------------------------------
     # _queryScenes
     # -------------------------------------------------------------------------
@@ -655,6 +663,11 @@ class EvhrToA(object):
             # ---
             sceneList = [str(scene) for scene in sceneList]
 
+        # ---
+        # Footprints might erroneously not be normalized.  Remove duplicates
+        # now.  Dg_mosaic would find them later and throw an exception.
+        # ---
+        sceneList = list(set(sceneList))        
         sceneList.sort()
 
         # ---
@@ -665,14 +678,14 @@ class EvhrToA(object):
         # only takes a fraction of the overall time.
         # ---
         stripsWithScenes = self._collectImagesByStrip(sceneList)
-        
+
         if not envelope:
-            
+
             sceneSet = set()
-            
+
             for key in stripsWithScenes.keys():
                 sceneSet |= set(stripsWithScenes[key])
-            
+
             envelope = self._computeEnvelope(list(sceneSet))
 
         # The output SRS must be UTM.
@@ -685,7 +698,7 @@ class EvhrToA(object):
                            self._demDir,
                            self._toaDir,
                            self._outSrsProj4,
-                           self._logger)        
+                           self._logger)
 
     # -------------------------------------------------------------------------
     # runOneStrip
@@ -695,20 +708,20 @@ class EvhrToA(object):
     # -> stripToToA
     # -------------------------------------------------------------------------
     @staticmethod
-    def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir, 
+    def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
                      toaDir, outSrsProj4, logger):
 
         if logger:
             logger.info('In runOneStrip')
 
-        imageForEachBandInStrip = EvhrToA._createStrip(stripID, 
-                                                       scenes, 
-                                                       bandDir, 
+        imageForEachBandInStrip = EvhrToA._createStrip(stripID,
+                                                       scenes,
+                                                       bandDir,
                                                        stripDir,
                                                        logger)
-        
+
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
-        
+
         EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
                             demDir, toaDir, outSrsProj4, logger)
 
@@ -731,10 +744,10 @@ class EvhrToA(object):
         for bandName in bands:
 
             if logger:
-                
-                logger.info('Reading band ' + bandName + \
+
+                logger.info('Reading band ' + bandName +
                             ' for all scenes in strip ' + stripName)
-                
+
             bandScenes = [scene.getBand(bandDir, bandName)
                           for scene in stripScenes]
 
@@ -747,16 +760,16 @@ class EvhrToA(object):
             if not os.path.exists(stripBandFile):
 
                 if logger:
-                
-                    logger.info('Mosaicking all of band ' + bandName + \
+
+                    logger.info('Mosaicking all of band ' + bandName +
                                 ' scenes in strip ' + stripName)
 
                 cmd = EvhrToA.BASE_SP_CMD + \
-                      'dg_mosaic ' + \
-                      '--output-nodata-value 0' + \
-                      ' --ignore-inconsistencies --output-prefix {} {}'. \
-                      format(stripBandFile.replace('.r100.tif', ''),
-                             bandScenesStr)
+                    'dg_mosaic ' + \
+                    '--output-nodata-value 0' + \
+                    ' --ignore-inconsistencies --output-prefix {} {}'. \
+                    format(stripBandFile.replace('.r100.tif', ''),
+                           bandScenesStr)
 
                 SystemCommand(cmd, logger, True)
 
@@ -786,10 +799,10 @@ class EvhrToA(object):
 
         for stripBand in imageForEachBandInStrip:
 
-            orthoBandDg = EvhrToA._orthoOne(stripBand, 
+            orthoBandDg = EvhrToA._orthoOne(stripBand,
                                             orthoDir,
                                             demDir,
-                                            outSrsProj4, 
+                                            outSrsProj4,
                                             logger)
 
             toaBands.append(ToaCalculation.run(orthoBandDg,
