@@ -368,55 +368,55 @@ class EvhrToA(object):
         if logger:
             logger.info('Merging bands into ' + str(outFileName))
 
-        cmd = 'gdal_merge.py -co COMPRESS=LZW -co BIGTIFF=YES -ot Int16 \
-              -separate -init {} -a_nodata {} -o {} {}'. \
-              format(EvhrToA.NO_DATA_VALUE,
-                     EvhrToA.NO_DATA_VALUE,
-                     outFileName,
-                     ' '.join(bandFiles))
+        # cmd = 'gdal_merge.py -co COMPRESS=LZW -co BIGTIFF=YES -ot Int16 \
+        #       -separate -init {} -a_nodata {} -o {} {}'. \
+        #       format(EvhrToA.NO_DATA_VALUE,
+        #              EvhrToA.NO_DATA_VALUE,
+        #              outFileName,
+        #              ' '.join(bandFiles))
+        #
+        # SystemCommand(cmd, logger, True)
 
-        SystemCommand(cmd, logger, True)
+        bandDs = gdal.Open(bandFiles[0])
+        driver = gdal.GetDriverByName('GTiff')
 
-        # bandDs = gdal.Open(bandFiles[0])
-        # driver = gdal.GetDriverByName('GTiff')
-        #
-        # ds = driver.Create(outFileName,
-        #                    bandDs.RasterXSize,
-        #                    bandDs.RasterYSize,
-        #                    len(bandFiles),
-        #                    gdal.GDT_Int16,
-        #                    options=['COMPRESS=LZW',
-        #                             'BIGTIFF=YES'])
-        #
-        # try:
-        #
-        #     ds.SetSpatialRef(bandDs.GetSpatialRef())
-        #     ds.SetProjection(bandDs.GetProjectionRef())
-        #
-        #     # Add the bands.
-        #     outBandNum = 0
-        #
-        #     for bandFile in bandFiles:
-        #
-        #         # Create the output band.
-        #         outBandNum += 1
-        #         outBand = ds.GetRasterBand(outBandNum)
-        #         outBand.SetNoDataValue(EvhrToA.NO_DATA_VALUE)
-        #
-        #         baseName = os.path.basename(bandFile)
-        #         nameNoExt = baseName.split('.')[0]
-        #         bandName = '-'.join(nameNoExt.split('_')[-2:])
-        #         outBand.SetDescription(bandName)
-        #
-        #         # Write the input raster to the output band.
-        #         outBand.WriteRaster(0,
-        #                             0,
-        #                             bandDs.RasterXSize,
-        #                             bandDs.RasterYSize,
-        #                             gdal.Open(bandFile).ReadRaster())
-        #
-        # except:
-        #     os.remove(outFileName)
+        ds = driver.Create(outFileName,
+                           bandDs.RasterXSize,
+                           bandDs.RasterYSize,
+                           len(bandFiles),
+                           gdal.GDT_Int16,
+                           options=['COMPRESS=LZW',
+                                    'BIGTIFF=YES'])
+
+        try:
+
+            ds.SetSpatialRef(bandDs.GetSpatialRef())
+            ds.SetProjection(bandDs.GetProjectionRef())
+
+            # Add the bands.
+            outBandNum = 0
+
+            for bandFile in bandFiles:
+
+                # Create the output band.
+                outBandNum += 1
+                outBand = ds.GetRasterBand(outBandNum)
+                outBand.SetNoDataValue(EvhrToA.NO_DATA_VALUE)
+
+                baseName = os.path.basename(bandFile)
+                nameNoExt = baseName.split('.')[0]
+                bandName = '-'.join(nameNoExt.split('_')[-2:])
+                outBand.SetDescription(bandName)
+
+                # Write the input raster to the output band.
+                outBand.WriteRaster(0,
+                                    0,
+                                    bandDs.RasterXSize,
+                                    bandDs.RasterYSize,
+                                    gdal.Open(bandFile).ReadRaster())
+
+        except:
+            os.remove(outFileName)
 
         # Delete the band files.
         for bandFile in bandFiles:
@@ -495,7 +495,7 @@ class EvhrToA(object):
               ' ' + str(envelope.lry()) + \
               ' ' + ' '.join(tiles)
 
-        sCmd = SystemCommand(cmd, logger, True)
+        SystemCommand(cmd, logger, True)
 
         # Run mosaicked DEM through geoid correction
         cmd = EvhrToA.BASE_SP_CMD + \

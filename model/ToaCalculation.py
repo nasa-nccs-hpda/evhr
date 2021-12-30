@@ -138,7 +138,7 @@ class ToaCalculation(object):
                    bandName,
                    toaBandFile)
 
-        sCmd = SystemCommand(cmd, logger, True)
+        SystemCommand(cmd, logger, True)
 
     # --------------------------------------------------------------------------
     # run()
