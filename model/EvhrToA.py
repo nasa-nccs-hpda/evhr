@@ -160,14 +160,14 @@ class EvhrToA(object):
 
             try:
                 dgf = DgFile(sceneFile, self._logger)
-                
+
             except RuntimeError as e:
-                
+
                 if self._logger:
                     self._logger.warn(e)
 
                 continue
-                
+
             stripID = dgf.getStripName()
 
             if stripID:
@@ -416,7 +416,7 @@ class EvhrToA(object):
                                     bandDs.RasterYSize,
                                     gdal.Open(bandFile).ReadRaster())
 
-        except:
+        except Exception:
             os.remove(outFileName)
 
         # Delete the band files.
@@ -668,7 +668,7 @@ class EvhrToA(object):
         # Footprints might erroneously not be normalized.  Remove duplicates
         # now.  Dg_mosaic would find them later and throw an exception.
         # ---
-        sceneList = list(set(sceneList))        
+        sceneList = list(set(sceneList))
         sceneList.sort()
 
         # ---
@@ -691,7 +691,7 @@ class EvhrToA(object):
 
         # The output SRS must be UTM.
         self._outSrsProj4 = self._getUtmSrs(envelope)
-        
+
         self.processStrips(stripsWithScenes,
                            self._bandDir,
                            self._stripDir,
