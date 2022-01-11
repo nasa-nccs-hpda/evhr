@@ -346,7 +346,7 @@ class EvhrToA(object):
                 zone, hemi = feature.GetField('Zone_Hemi').split(',')
 
         # Configure proj.4 string
-        proj4 = '+proj=utm +zone={} +ellps=WGS84 ' + \
+        proj4 = '+proj=utm +zone={} +ellps=WGS84 ' \
                 '+datum=WGS84 +units=m +no_defs'.format(zone)
 
         if hemi.upper() == 'S':
@@ -392,6 +392,7 @@ class EvhrToA(object):
 
             ds.SetSpatialRef(bandDs.GetSpatialRef())
             ds.SetProjection(bandDs.GetProjectionRef())
+            ds.SetGeoTransform(bandDs.GetGeoTransform())
 
             # Add the bands.
             outBandNum = 0
@@ -690,7 +691,7 @@ class EvhrToA(object):
 
         # The output SRS must be UTM.
         self._outSrsProj4 = self._getUtmSrs(envelope)
-
+        
         self.processStrips(stripsWithScenes,
                            self._bandDir,
                            self._stripDir,
