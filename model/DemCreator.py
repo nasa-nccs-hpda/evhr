@@ -137,10 +137,13 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # getPairs
     # -------------------------------------------------------------------------
-    def _getPairs(self, dgScenes):
+    def _getPairs(self, scenes):
+
+        # Get FootprintsScene objects because it has pair information.
+        
         
         # Collate scenes into pairs.
-        pairs = self._collatePairs(dgScenes)
+        pairs = self._collatePairs(scenes)
         
         # Search for missing mates.
         pairs, pairsWithMissingScenes = self._findMates(pairs)
@@ -154,12 +157,12 @@ class DemCreator(object):
             del pairs[pair]
             
         # Reconcile all this bookkeeping.
-        self._reconcilePairing(pairs, dgScenes)
+        self._reconcilePairing(pairs, scenes)
         
     # -------------------------------------------------------------------------
     # reconcilePairing
     # -------------------------------------------------------------------------
-    def _reconcilePairing(self, pairs, dgScenes):
+    def _reconcilePairing(self, pairs, scenes):
         
         numPairedScenes = 0
         
@@ -168,7 +171,7 @@ class DemCreator(object):
             
         if self._logger:
             
-            numQueriedScenes = len(dgScenes)
+            numQueriedScenes = len(scenes)
             
             unaccountedScenes = \
                 numQueriedScenes - numPairedScenes - numUnpairedScenes
@@ -189,9 +192,10 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # run
     # -------------------------------------------------------------------------
-    def run(self, dgScenes):
+    def run(self, scenes):
         
-        pairs = self._getPairs(dgScenes)
+        sceneList = [str(scene) for scene in scenes]
+        pairs = self._getPairs(sceneList)
         self.runPairs(pairs)
 
     # -------------------------------------------------------------------------
@@ -203,13 +207,13 @@ class DemCreator(object):
     def runPairs(self, pairs):
         
         for key in pairs:
-            self._runPair(key, pairs[key], self._outDir)
+            self._runPair(key, pairs[key], self._outDir, self._logger)
 
     # -------------------------------------------------------------------------
     # runPair
     # -------------------------------------------------------------------------
     @staticmethod
-    def _runPair(pairName, dgScenes, outDir):
+    def _runPair(pairName, dgScenes, outDir, logger):
         
         # If the DEM exists, do not proceed.
         demName = os.path.join(outDir, pairName + '.tif')
@@ -238,6 +242,8 @@ class DemCreator(object):
                 os.symlink(scene.replace(ext, '.xml'), dstXml)
 
         # DEM application settings.
+        DG_STEREO_DIR = '/opt/DgStereo'
+        DEM_APPLICATION = os.path.join(DG_STEREO_DIR, 'evhr', 'dg_stereo.sh')
         PAIR_NAME     = pairName
         TEST          = 'false' #'true'
         ADAPT         = 'true'
@@ -253,9 +259,28 @@ class DemCreator(object):
         QUERY         = 'false'
         CROP_WINDOW   = '"0 15000 5000 5000"'
         USE_NODE_LIST = 'true'
-        NODES         = '/att/nobackup/mwooten3/EVHR_API/DgStereo/nodeList.txt'
+        NODES         = os.path.join(DG_STEREO_DIR, 'nodeList.txt')
         
         # Create the DEM.
-        BASE_SP_CMD = '/opt/???/bin/'
-        DEM_APPLICATION = 'dg_stereo.sh'
+        cmd = DEM_APPLICATION + \
+              ' ' + PAIR_NAME + \
+              ' ' + TEST + \
+              ' ' + ADAPT + \
+              ' ' + MAP + \
+              ' ' + RUN_PSTEREO + \
+              ' ' + BATCH_NAME + \
+              ' _placeholder_for_rpcdem_' + \
+              ' ' + USE_NODE_LIST + \
+              ' ' + NODES + \
+              ' ' + SGM + \
+              ' ' + SUB_PIX_KNL + \
+              ' ' + ERODE_MAX + \
+              ' ' + COR_KNL_SIZE + \
+              ' ' + MYSTERY1 + \
+              ' ' + OUT_DIR + \
+              ' ' + QUERY + \
+              ' ' + CROP_WINDOW  
+
+        SystemCommand(cmd, logger, True)
+
         
