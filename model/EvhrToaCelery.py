@@ -13,6 +13,8 @@ from evhr.model.EvhrToA import EvhrToA
 # -----------------------------------------------------------------------------
 class EvhrToaCelery(EvhrToA):
 
+    MAPPROJECT_THREADS = 1
+
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
@@ -30,15 +32,15 @@ class EvhrToaCelery(EvhrToA):
                       demDir, toaDir, outSrsProj4, logger):
 
         wpi = group(EvhrToaCelery._runOneStrip.s(
-                            key,
-                            stripsWithScenes[key],
-                            bandDir,
-                            stripDir,
-                            orthoDir,
-                            demDir,
-                            toaDir,
-                            outSrsProj4,
-                            logger) for key in iter(stripsWithScenes))
+            key,
+            stripsWithScenes[key],
+            bandDir,
+            stripDir,
+            orthoDir,
+            demDir,
+            toaDir,
+            outSrsProj4,
+            logger) for key in iter(stripsWithScenes))
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
@@ -66,5 +68,11 @@ class EvhrToaCelery(EvhrToA):
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
 
-        EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
-                            demDir, toaDir, outSrsProj4, logger)
+        EvhrToA._stripToToa(imageForEachBandInStrip,
+                            toaName,
+                            orthoDir,
+                            demDir,
+                            toaDir,
+                            outSrsProj4,
+                            EvhrToaCelery.MAPPROJECT_THREADS,
+                            logger)
