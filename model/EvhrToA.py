@@ -47,8 +47,6 @@ class EvhrToA(object):
 
     NO_DATA_VALUE = -9999
 
-    MAPPROJECT_THREADS = 4
-
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
@@ -752,14 +750,14 @@ class EvhrToA(object):
                                                        logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
-
+        mapproject_threads = 4
         EvhrToA._stripToToa(imageForEachBandInStrip,
                             toaName,
                             orthoDir,
                             demDir,
                             toaDir,
                             outSrsProj4,
-                            EvhrToA.MAPPROJECT_THREADS,
+                            mapproject_threads,
                             logger)
 
     # --------------------------------------------------------------------------

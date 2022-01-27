@@ -13,8 +13,6 @@ from evhr.model.EvhrToA import EvhrToA
 # -----------------------------------------------------------------------------
 class EvhrToaCelery(EvhrToA):
 
-    MAPPROJECT_THREADS = 1
-
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
@@ -67,6 +65,7 @@ class EvhrToaCelery(EvhrToA):
                                                        logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
+        mapproject_threads = 1
 
         EvhrToA._stripToToa(imageForEachBandInStrip,
                             toaName,
@@ -74,5 +73,5 @@ class EvhrToaCelery(EvhrToA):
                             demDir,
                             toaDir,
                             outSrsProj4,
-                            EvhrToaCelery.MAPPROJECT_THREADS,
+                            mapproject_threads,
                             logger)
