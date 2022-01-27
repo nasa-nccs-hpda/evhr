@@ -516,7 +516,8 @@ class EvhrToA(object):
     # run -> processStrips -> runOneStrip -> stripToToa -> orthoOne
     # --------------------------------------------------------------------------
     @staticmethod
-    def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, logger):
+    def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, mapproject_threads,
+                  logger):
 
         baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
         orthoFile = os.path.join(orthoDir, baseName + '-ortho.tif')
@@ -546,19 +547,34 @@ class EvhrToA(object):
             if bandFile.isPanchromatic():
                 outRes = 1
 
-            cmd = EvhrToA.BASE_SP_CMD + \
-                'mapproject --nodata-value 0' + \
-                ' --threads=2 -t rpc' + \
-                ' --mpp={}'.format(outRes) + \
-                ' --t_srs "{}"'.format(outSrsProj4) + \
-                ' ' + clippedDEM + \
-                ' ' + bandFile.fileName() + \
-                ' ' + bandFile.xmlFileName + \
-                ' ' + orthoFileTemp
-
             try:
+                if logger:
+                    msg = 'Using: {} threads for mapproject'.format(
+                        mapproject_threads)
+                    logger.info(msg)
+                cmd = EvhrToA.BASE_SP_CMD + \
+                    'mapproject --nodata-value 0' + \
+                    ' --threads={}'.format(mapproject_threads) + \
+                    ' --num-processes=1 -t rpc' + \
+                    ' --mpp={}'.format(outRes) + \
+                    ' --t_srs "{}"'.format(outSrsProj4) + \
+                    ' ' + clippedDEM + \
+                    ' ' + bandFile.fileName() + \
+                    ' ' + bandFile.xmlFileName + \
+                    ' ' + orthoFileTemp
+
                 SystemCommand(cmd, logger, True)
 
+            except Exception as e:
+                msg = 'Encountered exception executing mapproject: ' + \
+                    '{}'.format(e)
+                if logger:
+                    logger.error(msg)
+                if os.path.exists(orthoFile):
+                    os.remove(orthoFile)
+                raise RuntimeError(msg)
+
+            try:
                 # Convert NoData to settings value, set output type to Int16
                 cmd = EvhrToA.BASE_SP_CMD + \
                     'image_calc -c "var_0" {} -d int16   \
@@ -567,10 +583,17 @@ class EvhrToA(object):
 
                 SystemCommand(cmd, logger, True)
 
-            except Exception:
-                os.remove(orthoFile)
+            except Exception as e:
+                msg = 'Encountered exception executing image_calc: ' + \
+                    '{}'.format(e)
+                if logger:
+                    logger.error(msg)
+                if os.path.exists(orthoFile):
+                    os.remove(orthoFile)
+                raise RuntimeError(msg)
 
-            os.remove(orthoFileTemp)
+            if os.path.exists(orthoFileTemp):
+                os.remove(orthoFileTemp)
 
             # Copy xml to accompany ortho file (needed for TOA)
             shutil.copy(bandFile.xmlFileName,
@@ -584,8 +607,13 @@ class EvhrToA(object):
             try:
                 orthoDg = DgFile(orthoFile)
 
-            except Exception:
+            except Exception as e:
+                msg = 'Encountered exception creating DgFile ' + \
+                    'from {}: {}'.format(orthoFile, e)
+                if logger:
+                    logger.error(msg)
                 os.remove(orthoFile)
+                raise RuntimeError(msg)
 
         return orthoDg
 
@@ -722,9 +750,15 @@ class EvhrToA(object):
                                                        logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
-
-        EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
-                            demDir, toaDir, outSrsProj4, logger)
+        mapproject_threads = 4
+        EvhrToA._stripToToa(imageForEachBandInStrip,
+                            toaName,
+                            orthoDir,
+                            demDir,
+                            toaDir,
+                            outSrsProj4,
+                            mapproject_threads,
+                            logger)
 
     # --------------------------------------------------------------------------
     # scenesToStripFromBandList
@@ -788,7 +822,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _stripToToa(imageForEachBandInStrip, toaName, orthoDir, demDir, toaDir,
-                    outSrsProj4, logger):
+                    outSrsProj4, mapproject_threads, logger):
 
         if logger:
             logger.info('In _stripToToa, processing ' + toaName)
@@ -804,6 +838,7 @@ class EvhrToA(object):
                                             orthoDir,
                                             demDir,
                                             outSrsProj4,
+                                            mapproject_threads,
                                             logger)
 
             toaBands.append(ToaCalculation.run(orthoBandDg,
