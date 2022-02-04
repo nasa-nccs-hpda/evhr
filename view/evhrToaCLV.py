@@ -9,7 +9,7 @@ from osgeo import osr
 from osgeo.osr import SpatialReference
 
 from core.model.Envelope import Envelope
-from evhr.model.ILProcessController import ILProcessController
+from core.model.ILProcessController import ILProcessController
 from evhr.model.EvhrToA import EvhrToA
 from evhr.model.EvhrToaCelery import EvhrToaCelery
 
@@ -88,7 +88,7 @@ def main():
 
     if args.celery:
 
-        with ILProcessController() as processController:
+        with ILProcessController('evhr.model.CeleryConfiguration') as processController:
 
             toa = EvhrToaCelery(args.o, logger)
             toa.run(env, args.scenes)
