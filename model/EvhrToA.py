@@ -617,7 +617,8 @@ class EvhrToA(object):
         MAXIMUM_SCENES = 100
         fpq.setMaximumScenes(MAXIMUM_SCENES)
 
-        sceneFiles = fpq.getScenes()
+        fpScenes = fpq.getScenes()
+        sceneFiles = fpq.fpScenesToFileNames(fpScenes)
 
         if not sceneFiles and self._logger:
             self._logger.error('There were no level 1B scenes.')

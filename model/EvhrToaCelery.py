@@ -2,7 +2,6 @@
 import os
 
 from celery import group
-from celery.contrib import rdb
 
 from core.model.CeleryConfiguration import app
 from evhr.model.EvhrToA import EvhrToA
