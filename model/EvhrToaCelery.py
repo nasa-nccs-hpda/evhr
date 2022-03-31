@@ -30,15 +30,15 @@ class EvhrToaCelery(EvhrToA):
                       demDir, toaDir, outSrsProj4, logger):
 
         wpi = group(EvhrToaCelery._runOneStrip.s(
-                            key,
-                            stripsWithScenes[key],
-                            bandDir,
-                            stripDir,
-                            orthoDir,
-                            demDir,
-                            toaDir,
-                            outSrsProj4,
-                            logger) for key in iter(stripsWithScenes))
+            key,
+            stripsWithScenes[key],
+            bandDir,
+            stripDir,
+            orthoDir,
+            demDir,
+            toaDir,
+            outSrsProj4,
+            logger) for key in iter(stripsWithScenes))
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
@@ -65,6 +65,13 @@ class EvhrToaCelery(EvhrToA):
                                                        logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
+        mapproject_threads = 1
 
-        EvhrToA._stripToToa(imageForEachBandInStrip, toaName, orthoDir,
-                            demDir, toaDir, outSrsProj4, logger)
+        EvhrToA._stripToToa(imageForEachBandInStrip,
+                            toaName,
+                            orthoDir,
+                            demDir,
+                            toaDir,
+                            outSrsProj4,
+                            mapproject_threads,
+                            logger)
