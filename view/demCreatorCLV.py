@@ -30,6 +30,10 @@ def main():
                         action='store_true',
                         help='Use Celery for distributed processing.')
 
+    parser.add_argument('--log-to-file',
+                        default=False,
+                        help='Print messages to a file, instead of the screen.')
+
     parser.add_argument('-o',
                         default='.',
                         help='Path to output directory')
@@ -50,7 +54,16 @@ def main():
     # ---
     # Logging
     # ---
-    logger = logging.getLogger()
+    logger = None
+    
+    if args.log-to-file:
+        
+        logFile = os.path.join(args.o, 'dem.out')
+        logger = logger.basicConfig(logFile)
+        
+    else:
+        logger = logging.getLogger()
+    
     logger.setLevel(logging.INFO)
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
