@@ -409,7 +409,9 @@ class DemCreator(object):
         # self.processPairs(pairs)
 
         import pandas as pd
-        savedPairs = pd.read_pickle('/att/nobackup/rlgill/pairs.pickle')
+        savedPairs = \
+            pd.read_pickle('/adapt/nobackup/people/rlgill/pairs.pickle')
+            
         self.processPairs(savedPairs)
 
     # -------------------------------------------------------------------------

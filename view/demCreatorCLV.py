@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import pathlib
 import sys
 
@@ -18,7 +19,7 @@ from evhr.model.ILProcessController import ILProcessController
 #
 # evhr/view/demCreatorCLV.py -o /att/nobackup/rlgill/SystemTesting/testDEM/ --scenes  '/css/nga/WV02/1B/2018/278/WV02_10300100889D0300_X1BS_502602073050_01/WV02_20181005212447_10300100889D0300_18OCT05212447-P1BS-502602073050_01_P002.ntf'
 #
-# evhr/view/demCreatorCLV.py -o /att/nobackup/rlgill/SystemTesting/testDEM/ -e -148 65 -147.5 64.5 4326
+# evhr/view/demCreatorCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testDEM/ -e -148 65 -147.5 64.5 4326
 # -----------------------------------------------------------------------------
 def main():
 
@@ -30,8 +31,8 @@ def main():
                         action='store_true',
                         help='Use Celery for distributed processing.')
 
-    parser.add_argument('--log-to-file',
-                        default=False,
+    parser.add_argument('--logToFile',
+                        action='store_true',
                         help='Print messages to a file, instead of the screen.')
 
     parser.add_argument('-o',
@@ -54,16 +55,12 @@ def main():
     # ---
     # Logging
     # ---
-    logger = None
-    
-    if args.log-to-file:
+    if args.logToFile:
         
         logFile = os.path.join(args.o, 'dem.out')
-        logger = logger.basicConfig(logFile)
-        
-    else:
-        logger = logging.getLogger()
+        logging.basicConfig(filename=logFile)
     
+    logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
@@ -136,6 +133,3 @@ def main():
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
