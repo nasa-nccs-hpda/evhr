@@ -1,8 +1,11 @@
 
 from celery import group
+from celery.utils.log import get_task_logger
 
 from core.model.CeleryConfiguration import app
 from evhr.model.DemCreator import DemCreator
+
+logger = get_task_logger(__name__)
 
 
 # -----------------------------------------------------------------------------
@@ -13,29 +16,29 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, logger=None):
+    def __init__(self, outDir, unusedLogger=None):
 
         if logger:
             logger.info('In DemCreatorCelery.__init__')
             
         # Initialize the base class.
-        super(DemCreatorCelery, self).__init__(outDir, logger)
+        super(DemCreatorCelery, self).__init__(outDir, unusedLogger)
 
     # -------------------------------------------------------------------------
     # processPairs
     #
     # run{env|scenes} -> getPairs -> processPairs
     # -------------------------------------------------------------------------
-    def processPairs(self, pairs):
+    def processPairs(self, pairs, outDir, unusedLogger):
         
-        if self._logger:
-            self._logger.info('In DemCreatorCelery.processPairs')
+        if logger:
+            logger.info('In DemCreatorCelery.processPairs')
             
         wpi = group(DemCreatorCelery._processPair.s(
                         key,
                         pairs[key],
-                        self._outDir,
-                        self._logger) for key in pairs)
+                        outDir,
+                        logger) for key in pairs)
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
@@ -47,7 +50,7 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     @staticmethod
     @app.task(serializer='pickle')
-    def _processPair(pairName, dgScenes, outDir, logger):
+    def _processPair(pairName, dgScenes, outDir, unusedLogger):
         
         if logger:
             logger.info('In DemCreatorCelery._processPair')
