@@ -288,7 +288,7 @@ class EvhrToA(object):
         srs = envelope.GetSpatialReference()
 
         if srs.IsProjected() and 'UTM' in srs.GetAttrValue('PROJCS'):
-            return self.GetSpatialRef().ExportToProj4()
+            return envelope.GetSpatialReference().ExportToProj4()
 
         # If SRS is not 4326, convert coordinates
         targetSRS = SpatialReference()
@@ -427,10 +427,10 @@ class EvhrToA(object):
     # mosaicAndClipDemTiles
     #
     # To build the SRTM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp /att/pubrepo/DEM/SRTM/1-ArcSec/*.hgt
+    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp /adapt/nobackup/projects/dem/SRTM/1-ArcSec/*.hgt
     #
     # To build the ASTERGDEM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp /att/pubrepo/DEM/ASTERGDEM/v2/*dem.tif
+    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp /adapt/nobackup/projects/dem/ASTERGDEM/v2/*dem.tif
     #
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     #     -> mosaicAndClipDemTiles
@@ -751,6 +751,7 @@ class EvhrToA(object):
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
         mapproject_threads = 4
+        
         EvhrToA._stripToToa(imageForEachBandInStrip,
                             toaName,
                             orthoDir,
