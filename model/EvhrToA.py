@@ -683,14 +683,12 @@ class EvhrToA(object):
         if not sceneList:
             sceneList = self._queryScenes(envelope)
 
-        else:
-
-            # ---
-            # Convert Path objects to strings.  The Path class is new in
-            # Python 3.2.  We should use them extensively.  There isn't time
-            # to do that now, so cast them to strings.
-            # ---
-            sceneList = [str(scene) for scene in sceneList]
+        # ---
+        # Convert FootprintsQuery and Path objects to strings.  The Path class
+        # is new in Python 3.2.  We should use them extensively.  There isn't
+        # time to do that now, so cast them to strings.
+        # ---
+        sceneList = [str(scene) for scene in sceneList]
 
         # ---
         # Footprints might erroneously not be normalized.  Remove duplicates
