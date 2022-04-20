@@ -20,7 +20,7 @@ class DemCreatorCelery(DemCreator):
 
         if logger:
             logger.info('In DemCreatorCelery.__init__')
-            
+
         # Initialize the base class.
         super(DemCreatorCelery, self).__init__(outDir, unusedLogger)
 
@@ -29,15 +29,15 @@ class DemCreatorCelery(DemCreator):
     #
     # run{env|scenes} -> getPairs -> processPairs
     # -------------------------------------------------------------------------
-    def processPairs(self, pairs, outDir, unusedLogger):
-        
+    def processPairs(self, pairs):
+
         if logger:
             logger.info('In DemCreatorCelery.processPairs')
-            
+
         wpi = group(DemCreatorCelery._processPair.s(
                         key,
                         pairs[key],
-                        outDir,
+                        self._outDir,
                         logger) for key in pairs)
 
         result = wpi.apply_async()
@@ -51,8 +51,8 @@ class DemCreatorCelery(DemCreator):
     @staticmethod
     @app.task(serializer='pickle')
     def _processPair(pairName, dgScenes, outDir, unusedLogger):
-        
+
         if logger:
             logger.info('In DemCreatorCelery._processPair')
-            
+
         DemCreator._processPair(pairName, dgScenes, outDir, logger)

@@ -12,7 +12,7 @@ from evhr.model.DemCreator import DemCreator
 # -----------------------------------------------------------------------------
 # main
 #
-# evhr/view/demStatusCLV.py -i /adapt/nobackup/people/rlgill/SystemTesting/testDEM2
+# evhr/view/demStatusCLV.py -i /adapt/nobackup/people/rlgill/SystemTesting/testDEM
 # -----------------------------------------------------------------------------
 def main():
 
@@ -33,16 +33,16 @@ def main():
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     logger.addHandler(ch)
-    
+
     # Find the pair directories.
     pairDirs = glob.glob(os.path.join(args.i, 'WV0*'))
-    
+
     # Check each pair directory.
     complete = []
     incomplete = []
-    
+
     for pairDir in pairDirs:
-        
+
         isComplete = DemCreator.demComplete(pairDir, logger)
 
         if isComplete:
@@ -50,10 +50,11 @@ def main():
 
         else:
             incomplete.append(pairDir)
-    
+
     # Print results.
     print('\n', len(complete), 'complete DEMs:', complete,
           '\n\n', len(incomplete), 'incomplete DEMs:', incomplete)
+
 
 # -----------------------------------------------------------------------------
 # Invoke the main

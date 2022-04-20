@@ -156,14 +156,14 @@ class EvhrToA(object):
 
             try:
                 dgf = DgFile(sceneFile, self._logger)
-                
+
             except RuntimeError as e:
-                
+
                 if self._logger:
                     self._logger.warn(e)
 
                 continue
-                
+
             stripID = dgf.getStripName()
 
             if stripID:
@@ -364,15 +364,6 @@ class EvhrToA(object):
         if logger:
             logger.info('Merging bands into ' + str(outFileName))
 
-        # cmd = 'gdal_merge.py -co COMPRESS=LZW -co BIGTIFF=YES -ot Int16 \
-        #       -separate -init {} -a_nodata {} -o {} {}'. \
-        #       format(EvhrToA.NO_DATA_VALUE,
-        #              EvhrToA.NO_DATA_VALUE,
-        #              outFileName,
-        #              ' '.join(bandFiles))
-        #
-        # SystemCommand(cmd, logger, True)
-
         bandDs = gdal.Open(bandFiles[0])
         driver = gdal.GetDriverByName('GTiff')
 
@@ -411,7 +402,7 @@ class EvhrToA(object):
                                     bandDs.RasterYSize,
                                     gdal.Open(bandFile).ReadRaster())
 
-        except:
+        except Exception:
             os.remove(outFileName)
 
         # Delete the band files.
@@ -651,20 +642,20 @@ class EvhrToA(object):
         if not sceneList:
             sceneList = self._queryScenes(envelope)
 
-        else:
+        # else:
 
-            # ---
-            # Convert Path objects to strings.  The Path class is new in
-            # Python 3.2.  We should use them extensively.  There isn't time
-            # to do that now, so cast them to strings.
-            # ---
-            sceneList = [str(scene) for scene in sceneList]
+        # ---
+        # Convert FootprintsQuery or Path objects to strings.  The Path
+        # class is new in Python 3.2.  We should use them extensively.
+        # There isn't time to do that now, so cast them to strings.
+        # ---
+        sceneList = [str(scene) for scene in sceneList]
 
         # ---
         # Footprints might erroneously not be normalized.  Remove duplicates
         # now.  Dg_mosaic would find them later and throw an exception.
         # ---
-        sceneList = list(set(sceneList))        
+        sceneList = list(set(sceneList))
         sceneList.sort()
 
         # ---

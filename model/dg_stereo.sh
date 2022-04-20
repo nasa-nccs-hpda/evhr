@@ -134,7 +134,8 @@ if [ "$ncpu" -gt "12" ] ; then
 fi
 
 # Stereogrammetry
-out=${out_root}/${pairname}/out
+# out=${out_root}/${pairname}/out
+out=${out_root}/${pairname}/${pairname}
 stereo_opts=''
 stereo_args=''
 sgm_opts=''

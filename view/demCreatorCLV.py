@@ -14,10 +14,11 @@ from evhr.model.DemCreator import DemCreator
 from evhr.model.DemCreatorCelery import DemCreatorCelery
 from evhr.model.ILProcessController import ILProcessController
 
+
 # -----------------------------------------------------------------------------
 # main
 #
-# evhr/view/demCreatorCLV.py -o /att/nobackup/rlgill/SystemTesting/testDEM/ --scenes  '/css/nga/WV02/1B/2018/278/WV02_10300100889D0300_X1BS_502602073050_01/WV02_20181005212447_10300100889D0300_18OCT05212447-P1BS-502602073050_01_P002.ntf'
+# evhr/view/demCreatorCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testDEM3/ --scenes  '/css/nga/WV02/1B/2018/278/WV02_10300100889D0300_X1BS_502602073050_01/WV02_20181005212447_10300100889D0300_18OCT05212447-P1BS-502602073050_01_P002.ntf'
 #
 # evhr/view/demCreatorCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testDEM/ -e -148 65 -147.5 64.5 4326
 # -----------------------------------------------------------------------------
@@ -56,10 +57,10 @@ def main():
     # Logging
     # ---
     if args.logToFile:
-        
+
         logFile = os.path.join(args.o, 'dem.out')
         logging.basicConfig(filename=logFile)
-    
+
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     ch = logging.StreamHandler(sys.stdout)
@@ -105,10 +106,10 @@ def main():
         with ILProcessController() as processController:
 
             dc = DemCreatorCelery(args.o, logger)
-            
+
             if env:
                 dc.runEnv(env)
-            
+
             elif args.scenes:
                 dc.runScenes(args.scenes)
 
@@ -118,15 +119,16 @@ def main():
     else:
 
         dc = DemCreator(args.o, logger)
-        
+
         if env:
             dc.runEnv(env)
-            
+
         elif args.scenes:
             dc.runScenes(args.scenes)
 
         else:
             raise RuntimeError('Scenes or an envelope must be provided.')
+
 
 # -----------------------------------------------------------------------------
 # Invoke the main
