@@ -34,7 +34,8 @@ def main():
 
     parser.add_argument('--logToFile',
                         action='store_true',
-                        help='Print messages to a file, instead of the screen.')
+                        help='Print messages to a file, \
+                              instead of the screen.')
 
     parser.add_argument('-o',
                         default='.',

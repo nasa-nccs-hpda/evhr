@@ -1,8 +1,5 @@
 
-import itertools
-import logging
 import os
-import re
 
 from osgeo.osr import SpatialReference
 
@@ -70,7 +67,7 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # createCloudOptimizedGeotiffs
     # -------------------------------------------------------------------------
-    def _createCloudOptimizedGeotiffs(self):
+    def _createCloudOptimizedGeotiffs(self, workDir):
 
         files = self._getFileList(workDir)
 
@@ -246,16 +243,17 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # getFileList
     # -------------------------------------------------------------------------
+    @staticmethod
     def _getFileList(self, workDir):
 
         pairName = os.path.basename(workDir)
         prefix = 'out'
 
-        files = ['out-DEM_1m.tif',
-                 'out-DEM_24m_hs_az315.tif',
-                 'out-DEM_24m.tif',
-                 'out-DEM_4m_hs_az315.tif',
-                 'out-DEM_4m.tif',
+        files = [prefix + '-DEM_1m.tif',
+                 prefix + '-DEM_24m_hs_az315.tif',
+                 prefix + '-DEM_24m.tif',
+                 prefix + '-DEM_4m_hs_az315.tif',
+                 prefix + '-DEM_4m.tif',
                  pairName + '_ortho_4m.tif',
                  pairName + '_ortho.tif']
 
@@ -392,6 +390,8 @@ class DemCreator(object):
             if logger:
                 logger.warn('DEM did not complete: ' + workDir)
 
+        self._createCloudOptimizedGeotiffs(workDir)
+
     # -------------------------------------------------------------------------
     # reconcilePairing
     #
@@ -449,20 +449,15 @@ class DemCreator(object):
         fpq = self._getBaseQuery()
         fpq.addAoI(envelope)
         fpq.setPairsOnly()
-        # fpScenes = fpq.getScenes()
-        #
-        # fpScenes = \
-        #     fpq.getScenesFromResultsFile('/att/nobackup/rlgill/queryEnv')
+        fpScenes = fpq.getScenes()
+        pairs = self._getPairs(fpScenes)
+        self.processPairs(pairs)
 
-        # pairs = self._getPairs(fpScenes)
-        # self.processPairs(pairs)
-
-        import pandas as pd
-        savedPairs = \
-            pd.read_pickle('/adapt/nobackup/people/rlgill/pairs.pickle')
+        # import pandas as pd
+        # savedPairs = \
+        #     pd.read_pickle('/adapt/nobackup/people/rlgill/pairs.pickle')
 
         self.processPairs(savedPairs)
-        self._createCloudOptimizedGeotiffs()
 
     # -------------------------------------------------------------------------
     # runScenes
@@ -490,4 +485,3 @@ class DemCreator(object):
 
         pairs = self._getPairs(fpScenes)
         self.processPairs(pairs)
-        self._createCloudOptimizedGeotiffs()
