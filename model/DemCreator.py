@@ -112,7 +112,7 @@ class DemCreator(object):
         #          pairName + '_ortho.tif']
         #
 
-        files = self._getFileList(workDir)
+        files = DemCreator._getFileList(workDir)
 
         for f in files:
 
@@ -244,7 +244,7 @@ class DemCreator(object):
     # getFileList
     # -------------------------------------------------------------------------
     @staticmethod
-    def _getFileList(self, workDir):
+    def _getFileList(workDir):
 
         pairName = os.path.basename(workDir)
         prefix = 'out'
