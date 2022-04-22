@@ -41,10 +41,6 @@ from evhr.model.ToaCalculation import ToaCalculation
 class EvhrToA(object):
 
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
-
-    # BASE_SP_CMD = '/opt/StereoPipeline/' + \
-    #               'StereoPipeline-2.7.0-2020-07-29-x86_64-Linux/bin/'
-
     NO_DATA_VALUE = -9999
 
     # -------------------------------------------------------------------------
@@ -368,15 +364,6 @@ class EvhrToA(object):
         if logger:
             logger.info('Merging bands into ' + str(outFileName))
 
-        # cmd = 'gdal_merge.py -co COMPRESS=LZW -co BIGTIFF=YES -ot Int16 \
-        #       -separate -init {} -a_nodata {} -o {} {}'. \
-        #       format(EvhrToA.NO_DATA_VALUE,
-        #              EvhrToA.NO_DATA_VALUE,
-        #              outFileName,
-        #              ' '.join(bandFiles))
-        #
-        # SystemCommand(cmd, logger, True)
-
         bandDs = gdal.Open(bandFiles[0])
         driver = gdal.GetDriverByName('GTiff')
 
@@ -650,7 +637,8 @@ class EvhrToA(object):
         MAXIMUM_SCENES = 100
         fpq.setMaximumScenes(MAXIMUM_SCENES)
 
-        sceneFiles = fpq.getScenes()
+        fpScenes = fpq.getScenes()
+        sceneFiles = fpq.fpScenesToFileNames(fpScenes)
 
         if not sceneFiles and self._logger:
             self._logger.error('There were no level 1B scenes.')
@@ -683,10 +671,19 @@ class EvhrToA(object):
         if not sceneList:
             sceneList = self._queryScenes(envelope)
 
+<<<<<<< HEAD
         # ---
         # Convert FootprintsQuery and Path objects to strings.  The Path class
         # is new in Python 3.2.  We should use them extensively.  There isn't
         # time to do that now, so cast them to strings.
+=======
+        # else:
+
+        # ---
+        # Convert FootprintsQuery or Path objects to strings.  The Path
+        # class is new in Python 3.2.  We should use them extensively.
+        # There isn't time to do that now, so cast them to strings.
+>>>>>>> DemProcessor
         # ---
         sceneList = [str(scene) for scene in sceneList]
 
