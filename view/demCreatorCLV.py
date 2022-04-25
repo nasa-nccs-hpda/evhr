@@ -69,16 +69,6 @@ def main():
     logger.addHandler(ch)
 
     # ---
-    # Ensure an envelope or scenes were provided.
-    # ---
-    if args.e and args.scenes:
-
-        logger.info('Both a scene list and an envelope were provided.  \
-                    Using the scene list.')
-
-        args.e = None
-
-    # ---
     # Envelope
     # ---
     env = None

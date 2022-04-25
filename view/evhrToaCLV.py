@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import argparse
+import csv
 import logging
 import pathlib
 import sys
@@ -20,6 +21,9 @@ from evhr.model.ILProcessController import ILProcessController
 # evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 --epsg 4326 -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --pan_res 0.5
 #
 # -----
+# evhr/view/evhrToaCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --scenes_in_file /adapt/nobackup/people/rlgill/SystemTesting/scene-list-file.csv
+#
+# -----
 # The time it takes to complete the scenes below:
 #
 # real    280m0.978s
@@ -38,14 +42,6 @@ def main():
                         action='store_true',
                         help='Use Celery for distributed processing.')
 
-    parser.add_argument('-e',
-                        nargs='*',
-                        help='ulx uly lrx lry')
-
-    parser.add_argument('--epsg',
-                        type=int,
-                        help='EPSG code')
-
     parser.add_argument('-o',
                         default='.',
                         help='Path to output directory')
@@ -57,35 +53,61 @@ def main():
                         help='The resolution, in meters, of panchromatic '
                               'output images')
 
-    parser.add_argument('--scenes',
-                        type=pathlib.Path,
-                        nargs='*',
-                        help='Fully-qualified path to scene files')
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument('-e',
+                       nargs=5,
+                       help='ulx uly lrx lry epsg-code')
+
+    group.add_argument('--scenes',
+                       type=pathlib.Path,
+                       nargs='*',
+                       help='Fully-qualified path to scene files')
+
+    group.add_argument('--scenes_in_file',
+                       type=pathlib.Path,
+                       help='Fully-qualified path to CSV file containing a '
+                            'list of scene files')
 
     args = parser.parse_args()
 
     print('GDAL version:', gdal.__version__)
 
+    # ---
     # Envelope
-    if args.epsg:
-
-        srs4326 = SpatialReference()
-        srs4326.ImportFromEPSG(4326)
-        srs = SpatialReference()
-        srs.ImportFromEPSG(args.epsg)
-
-        if srs.IsSame(srs4326):
-            srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-
+    # ---
     env = None
 
     if args.e:
+
+        epsgCode = int(args.e[4])
+        srs = SpatialReference()
+        srs.ImportFromEPSG(epsgCode)
+
+        srs4326 = SpatialReference()
+        srs4326.ImportFromEPSG(4326)
+
+        if srs.IsSame(srs4326):
+            srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 
         env = Envelope()
         env.addPoint(float(args.e[0]), float(args.e[1]), 0, srs)
         env.addPoint(float(args.e[2]), float(args.e[3]), 0, srs)
 
+    # ---
+    # Scene list file
+    # ---
+    scenes = args.scenes
+    
+    if args.scenes_in_file:
+        
+        with open(args.scenes_in_file, newline='') as csvFile:
+            reader = csv.reader(csvFile)
+            scenes = [scene[0] for scene in reader]
+            
+    # ---
     # Logging
+    # ---
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     ch = logging.StreamHandler(sys.stdout)
@@ -97,12 +119,12 @@ def main():
         with ILProcessController() as processController:
 
             toa = EvhrToaCelery(args.o, args.pan_res, logger)
-            toa.run(env, args.scenes)
+            toa.run(env, scenes)
 
     else:
 
         toa = EvhrToA(args.o, args.pan_res, logger)
-        toa.run(env, args.scenes)
+        toa.run(env, scenes)
 
 
 # -----------------------------------------------------------------------------
