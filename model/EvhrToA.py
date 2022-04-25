@@ -531,13 +531,13 @@ class EvhrToA(object):
             # Orthorectify.
             orthoFileTemp = orthoFile.replace('.tif', '-temp.tif')
             outRes = panResolution if bandFile.isPanchromatic() else 2
-            
+
             try:
                 if logger:
                     msg = 'Using: {} threads for mapproject'.format(
                         mapproject_threads)
                     logger.info(msg)
- 
+
                 cmd = EvhrToA.BASE_SP_CMD + \
                     'mapproject --nodata-value 0' + \
                     ' --threads={}'.format(mapproject_threads) + \
@@ -738,7 +738,7 @@ class EvhrToA(object):
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
         mapproject_threads = 4
-        
+
         EvhrToA._stripToToa(imageForEachBandInStrip,
                             toaName,
                             orthoDir,

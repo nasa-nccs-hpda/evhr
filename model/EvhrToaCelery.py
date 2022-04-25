@@ -23,8 +23,8 @@ class EvhrToaCelery(EvhrToA):
         logger.info('In EvhrToaCelery.__init__')
 
         # Initialize the base class.
-        super(EvhrToaCelery, self).__init__(outDir, 
-                                            panResolution, 
+        super(EvhrToaCelery, self).__init__(outDir,
+                                            panResolution,
                                             unusedLogger)
 
     # -------------------------------------------------------------------------
@@ -33,7 +33,7 @@ class EvhrToaCelery(EvhrToA):
     # run -> processStrips
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, panResolution, 
+                      demDir, toaDir, outSrsProj4, panResolution,
                       unusedLogger):
 
         logger.info('In EvhrToaCelery.processStrips')
