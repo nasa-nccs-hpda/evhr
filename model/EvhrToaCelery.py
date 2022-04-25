@@ -2,9 +2,12 @@
 import os
 
 from celery import group
+from celery.utils.log import get_task_logger
 
 from core.model.CeleryConfiguration import app
 from evhr.model.EvhrToA import EvhrToA
+
+logger = get_task_logger(__name__)
 
 
 # -----------------------------------------------------------------------------
@@ -15,10 +18,14 @@ class EvhrToaCelery(EvhrToA):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, logger=None):
+    def __init__(self, outDir, panResolution=1, unusedLogger=None):
+
+        logger.info('In EvhrToaCelery.__init__')
 
         # Initialize the base class.
-        super(EvhrToaCelery, self).__init__(outDir, logger)
+        super(EvhrToaCelery, self).__init__(outDir, 
+                                            panResolution, 
+                                            unusedLogger)
 
     # -------------------------------------------------------------------------
     # processStrips
@@ -26,7 +33,10 @@ class EvhrToaCelery(EvhrToA):
     # run -> processStrips
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, logger):
+                      demDir, toaDir, outSrsProj4, panResolution, 
+                      unusedLogger):
+
+        logger.info('In EvhrToaCelery.processStrips')
 
         wpi = group(EvhrToaCelery._runOneStrip.s(
             key,
@@ -37,6 +47,7 @@ class EvhrToaCelery(EvhrToA):
             demDir,
             toaDir,
             outSrsProj4,
+            panResolution,
             logger) for key in iter(stripsWithScenes))
 
         result = wpi.apply_async()
@@ -52,10 +63,9 @@ class EvhrToaCelery(EvhrToA):
     @staticmethod
     @app.task(serializer='pickle')
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, logger):
+                     toaDir, outSrsProj4, panResolution, unusedLogger):
 
-        if logger:
-            logger.info('In runOneStrip')
+        logger.info('In EvhrToaCelery._runOneStrip')
 
         imageForEachBandInStrip = EvhrToA._createStrip(stripID,
                                                        scenes,
@@ -73,4 +83,5 @@ class EvhrToaCelery(EvhrToA):
                             toaDir,
                             outSrsProj4,
                             mapproject_threads,
+                            panResolution,
                             logger)

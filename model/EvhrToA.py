@@ -46,7 +46,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, logger=None):
+    def __init__(self, outDir, panResolution=1, logger=None):
 
         self._logger = logger
 
@@ -57,6 +57,7 @@ class EvhrToA(object):
             raise RuntimeError(self._outDir + ' must be a directory.')
 
         self._outSrsProj4 = None
+        self._panResolution = panResolution
 
         # Ensure the ortho and toa directories exist.
         self._bandDir = os.path.join(self._outDir, '1-bands')
@@ -504,7 +505,7 @@ class EvhrToA(object):
     # --------------------------------------------------------------------------
     @staticmethod
     def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, mapproject_threads,
-                  logger):
+                  panResolution, logger):
 
         baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
         orthoFile = os.path.join(orthoDir, baseName + '-ortho.tif')
@@ -529,16 +530,14 @@ class EvhrToA(object):
 
             # Orthorectify.
             orthoFileTemp = orthoFile.replace('.tif', '-temp.tif')
-            outRes = 2
-
-            if bandFile.isPanchromatic():
-                outRes = 1
-
+            outRes = panResolution if bandFile.isPanchromatic() else 2
+            
             try:
                 if logger:
                     msg = 'Using: {} threads for mapproject'.format(
                         mapproject_threads)
                     logger.info(msg)
+ 
                 cmd = EvhrToA.BASE_SP_CMD + \
                     'mapproject --nodata-value 0' + \
                     ' --threads={}'.format(mapproject_threads) + \
@@ -611,7 +610,7 @@ class EvhrToA(object):
     # -> runOneStrip
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, logger):
+                      demDir, toaDir, outSrsProj4, panResolution, logger):
 
         for key in iter(stripsWithScenes):
 
@@ -623,6 +622,7 @@ class EvhrToA(object):
                                  demDir,
                                  toaDir,
                                  outSrsProj4,
+                                 panResolution,
                                  logger)
 
     # -------------------------------------------------------------------------
@@ -671,19 +671,10 @@ class EvhrToA(object):
         if not sceneList:
             sceneList = self._queryScenes(envelope)
 
-<<<<<<< HEAD
         # ---
         # Convert FootprintsQuery and Path objects to strings.  The Path class
         # is new in Python 3.2.  We should use them extensively.  There isn't
         # time to do that now, so cast them to strings.
-=======
-        # else:
-
-        # ---
-        # Convert FootprintsQuery or Path objects to strings.  The Path
-        # class is new in Python 3.2.  We should use them extensively.
-        # There isn't time to do that now, so cast them to strings.
->>>>>>> DemProcessor
         # ---
         sceneList = [str(scene) for scene in sceneList]
 
@@ -722,6 +713,7 @@ class EvhrToA(object):
                            self._demDir,
                            self._toaDir,
                            self._outSrsProj4,
+                           self._panResolution,
                            self._logger)
 
     # -------------------------------------------------------------------------
@@ -733,7 +725,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, logger):
+                     toaDir, outSrsProj4, panResolution, logger):
 
         if logger:
             logger.info('In runOneStrip')
@@ -754,6 +746,7 @@ class EvhrToA(object):
                             toaDir,
                             outSrsProj4,
                             mapproject_threads,
+                            panResolution,
                             logger)
 
     # --------------------------------------------------------------------------
@@ -818,7 +811,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _stripToToa(imageForEachBandInStrip, toaName, orthoDir, demDir, toaDir,
-                    outSrsProj4, mapproject_threads, logger):
+                    outSrsProj4, mapproject_threads, panResolution, logger):
 
         if logger:
             logger.info('In _stripToToa, processing ' + toaName)
@@ -835,6 +828,7 @@ class EvhrToA(object):
                                             demDir,
                                             outSrsProj4,
                                             mapproject_threads,
+                                            panResolution,
                                             logger)
 
             toaBands.append(ToaCalculation.run(orthoBandDg,

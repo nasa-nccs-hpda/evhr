@@ -9,16 +9,15 @@ from osgeo import osr
 from osgeo.osr import SpatialReference
 
 from core.model.Envelope import Envelope
-from evhr.model.ILProcessController import ILProcessController
 from evhr.model.EvhrToA import EvhrToA
 from evhr.model.EvhrToaCelery import EvhrToaCelery
+from evhr.model.ILProcessController import ILProcessController
 
 
 # -----------------------------------------------------------------------------
 # main
 #
-# export PYTHONPATH=`pwd`:`pwd`/core:`pwd`/evhr
-# evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 --epsg 4326 -o /att/nobackup/rlgill/SystemTesting/testToA/
+# evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 --epsg 4326 -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --pan_res 0.5
 #
 # -----
 # The time it takes to complete the scenes below:
@@ -50,6 +49,13 @@ def main():
     parser.add_argument('-o',
                         default='.',
                         help='Path to output directory')
+
+    parser.add_argument('--pan_res',
+                        type=float,
+                        default=1,
+                        choices=[0.5, 1],
+                        help='The resolution, in meters, of panchromatic '
+                              'output images')
 
     parser.add_argument('--scenes',
                         type=pathlib.Path,
@@ -90,12 +96,12 @@ def main():
 
         with ILProcessController() as processController:
 
-            toa = EvhrToaCelery(args.o, logger)
+            toa = EvhrToaCelery(args.o, args.pan_res, logger)
             toa.run(env, args.scenes)
 
     else:
 
-        toa = EvhrToA(args.o, logger)
+        toa = EvhrToA(args.o, args.pan_res, logger)
         toa.run(env, args.scenes)
 
 
