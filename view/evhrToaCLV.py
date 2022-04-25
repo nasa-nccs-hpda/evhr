@@ -98,13 +98,13 @@ def main():
     # Scene list file
     # ---
     scenes = args.scenes
-    
+
     if args.scenes_in_file:
-        
+
         with open(args.scenes_in_file, newline='') as csvFile:
             reader = csv.reader(csvFile)
             scenes = [scene[0] for scene in reader]
-            
+
     # ---
     # Logging
     # ---
