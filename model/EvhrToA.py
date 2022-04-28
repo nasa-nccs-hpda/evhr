@@ -331,6 +331,12 @@ class EvhrToA(object):
         ds = driver.Open(clipFile, 0)
         layer = ds.GetLayer()
 
+        # Is the envelope too large?
+        if len(layer) > 3:
+            
+            raise RuntimeError('The area requested spans more than 3 UTM ' +
+                               ' zones.')
+        
         maxArea = 0
 
         for feature in layer:
@@ -668,8 +674,14 @@ class EvhrToA(object):
             raise RuntimeError('Either an envelope or a scene list ' +
                                'must be provided.')
 
+        # ---
+        # Call to getUtmSrs is duplicated below for the scene list case.  When
+        # an envelope is specified, validate its size early.
+        # ---
         if not sceneList:
+
             sceneList = self._queryScenes(envelope)
+            self._outSrsProj4 = self._getUtmSrs(envelope)
 
         # ---
         # Convert FootprintsQuery and Path objects to strings.  The Path class
@@ -703,8 +715,8 @@ class EvhrToA(object):
 
             envelope = self._computeEnvelope(list(sceneSet))
 
-        # The output SRS must be UTM.
-        self._outSrsProj4 = self._getUtmSrs(envelope)
+            # The output SRS must be UTM.
+            self._outSrsProj4 = self._getUtmSrs(envelope)
 
         self.processStrips(stripsWithScenes,
                            self._bandDir,
