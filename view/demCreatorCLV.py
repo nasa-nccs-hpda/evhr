@@ -94,7 +94,7 @@ def main():
     # ---
     if args.celery:
 
-        with ILProcessController() as processController:
+        with ILProcessController('evhr.model.CeleryConfiguration') as processController:
 
             dc = DemCreatorCelery(args.o, logger)
 
