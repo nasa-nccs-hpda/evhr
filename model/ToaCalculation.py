@@ -66,7 +66,26 @@ class ToaCalculation(object):
         'IK01_BAND_N': [1145.8, 1.043, -8.869]
     }
 
-    NO_DATA_VALUE = -9999
+    NO_DATA_VALUE = -10001
+
+    #---------------------------------------------------------------------------
+    # binToaValues()
+    #---------------------------------------------------------------------------
+    @staticmethod
+    def binToaValues(toaBandFileTemp, toaBandFile, logger = None):
+
+        # Rarely, some pixels may be outside of the (-10000, 10000) range
+        # Correct those values here by binning to valid range
+
+        calc = '-10000*(A<-10000) + 10000*(A>10000) + A*((A>=-10000)*(A<=10000))'
+
+        cmd = 'gdal_calc.py --calc="{}" --outfile={} -A {} --NoDataValue={} \
+                --type=Int16'.format(calc, toaBandFile, toaBandFileTemp,    \
+                                                    ToaCalculation.NO_DATA_VALUE)
+
+        sCmd = SystemCommand(cmd, logger, True)
+
+        os.remove(toaBandFileTemp)
 
     # --------------------------------------------------------------------------
     # calcEarthSunDist()
@@ -150,11 +169,16 @@ class ToaCalculation(object):
                                     replace('.tif', '-toa.tif')
 
         toaBandFile = os.path.join(outputDir, baseName)
+        toaBandFileTemp = toaBandFile.replace('.tif', '-unbinned.tif')
 
         if not os.path.isfile(toaBandFile):
 
             ToaCalculation.calcToaReflectance(orthoBandDg,
-                                              toaBandFile,
+                                              toaBandFileTemp,
                                               logger)
+
+            ToaCalculation.binToaValues(toaBandFileTemp,
+                                        toaBandFile,
+                                        logger)
 
         return toaBandFile

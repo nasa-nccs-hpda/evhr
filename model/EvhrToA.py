@@ -41,7 +41,7 @@ from evhr.model.ToaCalculation import ToaCalculation
 class EvhrToA(object):
 
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
-    NO_DATA_VALUE = -9999
+    NO_DATA_VALUE = -10001
 
     # -------------------------------------------------------------------------
     # __init__
