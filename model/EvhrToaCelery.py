@@ -4,7 +4,7 @@ import os
 from celery import group
 from celery.utils.log import get_task_logger
 
-from core.model.CeleryConfiguration import app
+from evhr.model.CeleryConfiguration import app
 from evhr.model.EvhrToA import EvhrToA
 
 logger = get_task_logger(__name__)

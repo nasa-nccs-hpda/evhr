@@ -2,7 +2,7 @@
 from celery import group
 from celery.utils.log import get_task_logger
 
-from core.model.CeleryConfiguration import app
+from evhr.model.CeleryConfiguration import app
 from evhr.model.DemCreator import DemCreator
 
 logger = get_task_logger(__name__)
