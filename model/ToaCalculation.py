@@ -68,20 +68,20 @@ class ToaCalculation(object):
 
     NO_DATA_VALUE = -10001
 
-    #---------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     # binToaValues()
-    #---------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     @staticmethod
-    def binToaValues(toaBandFileTemp, toaBandFile, logger = None):
+    def binToaValues(toaBandFileTemp, toaBandFile, logger=None):
 
         # Rarely, some pixels may be outside of the (-10000, 10000) range
         # Correct those values here by binning to valid range
 
-        calc = '-10000*(A<-10000) + 10000*(A>10000) + A*((A>=-10000)*(A<=10000))'
+        calc = '-10000*(A<-10000)+10000*(A>10000) + A*((A>=-10000)*(A<=10000))'
 
         cmd = 'gdal_calc.py --calc="{}" --outfile={} -A {} --NoDataValue={} \
                 --type=Int16'.format(calc, toaBandFile, toaBandFileTemp,    \
-                                                    ToaCalculation.NO_DATA_VALUE)
+                                                ToaCalculation.NO_DATA_VALUE)
 
         sCmd = SystemCommand(cmd, logger, True)
 
