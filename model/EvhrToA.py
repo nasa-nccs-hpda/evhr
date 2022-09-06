@@ -1,4 +1,5 @@
 
+import filecmp
 import glob
 import os
 import shutil
@@ -15,6 +16,7 @@ from core.model.BaseFile import BaseFile
 from core.model.DgFile import DgFile
 from core.model.Envelope import Envelope
 from core.model.FootprintsQuery import FootprintsQuery
+from core.model.GeospatialImageFile import GeospatialImageFile
 from core.model.SystemCommand import SystemCommand
 
 from evhr.model.ToaCalculation import ToaCalculation
@@ -41,16 +43,20 @@ from evhr.model.ToaCalculation import ToaCalculation
 class EvhrToA(object):
 
     BASE_SP_CMD = '/opt/StereoPipeline/bin/'
+    MAXIMUM_SCENES = 100
     NO_DATA_VALUE = -10001
 
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, panResolution=1, logger=None):
+    def __init__(self, outDir, panResolution=1, panSharpen=False, logger=None):
 
         self._logger = logger
 
         # Output directory
+        if not os.path.exists(outDir):
+            os.mkdir(outDir)
+
         self._outDir = BaseFile(outDir).fileName()  # BaseFile tests validity.
 
         if not os.path.isdir(self._outDir):
@@ -58,6 +64,7 @@ class EvhrToA(object):
 
         self._outSrsProj4 = None
         self._panResolution = panResolution
+        self._panSharpen = panSharpen
 
         # Ensure the ortho and toa directories exist.
         self._bandDir = os.path.join(self._outDir, '1-bands')
@@ -81,12 +88,12 @@ class EvhrToA(object):
             self._logger.info('Ortho image directory: ' + self._orthoDir)
             self._logger.info('ToA directory: ' + self._toaDir)
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # clipShp
     #
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     #     -> mosaicAndClipDemTiles -> clipShp
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @staticmethod
     def _clipShp(shpFile, envelope, logger):
 
@@ -145,40 +152,36 @@ class EvhrToA(object):
     #
     # {strip1: [image, image, ...], strip2: [image, image, ...], ...}
     # -------------------------------------------------------------------------
-    def _collectImagesByStrip(self, sceneFiles):
+    def _collectImagesByStrip(self, dgScenes):
 
         if self._logger:
-            self._logger.info('In collectImagesByStrip')
 
-        # Aggregate the scenes into strips.
+            self._logger.info('In collectImagesByStrip')
+            self._logger.info('Coallating ' + str(len(dgScenes)) + ' scenes')
+
         stripsWithScenes = {}
 
-        for sceneFile in sceneFiles:
-
-            try:
-                dgf = DgFile(sceneFile, self._logger)
-
-            except RuntimeError as e:
-
-                if self._logger:
-                    self._logger.warn(e)
-
-                continue
+        for dgf in dgScenes:
 
             stripID = dgf.getStripName()
 
             if stripID:
 
                 if stripID not in stripsWithScenes:
+
                     stripsWithScenes[stripID] = []
 
-                if sceneFile not in stripsWithScenes[stripID]:
+                if dgf not in stripsWithScenes[stripID]:
+
                     stripsWithScenes[stripID].append(dgf)
+
+                else:
+                    if self._logger:
+                        self._logger.info(str(dgf) + ' already added')
 
             else:
 
                 if self._logger:
-
                     self._logger.warn('Unable to get strip name for: ' +
                                       stripID)
 
@@ -201,11 +204,11 @@ class EvhrToA(object):
 
         return env
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # _createDemForOrthos
     #
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @staticmethod
     def _createDemForOrthos(envelope, demDir, logger):
 
@@ -275,6 +278,26 @@ class EvhrToA(object):
         return stripBandList
 
     # -------------------------------------------------------------------------
+    # getMatesForPanSharpening
+    # -------------------------------------------------------------------------
+    def _getMatesForPanSharpening(self):
+
+        # ---
+        # If pan sharpening was requested, query the panchromatic counterparts
+        # of the multispectral scenes.
+        # ---
+        multispecCats = [s.getCatalogId() for s in dgScenes if
+                         s.isMultispectral()]
+
+        fpq = FootprintsQuery(logger=self._logger)
+        fpq.setMinimumOverlapInDegrees()
+        fpq.setMaximumScenes(MAXIMUM_SCENES)
+        fpq.setMultispectralOff()
+        fpScenes = fpq.getScenes()
+        panMates = fpq.fpScenesToFileNames(fpScenes)
+        return panMates
+
+    # -------------------------------------------------------------------------
     # getUtmSrs
     #
     # This method returns the UTM SRS definition in PROJ4 format.
@@ -333,10 +356,10 @@ class EvhrToA(object):
 
         # Is the envelope too large?
         if len(layer) > 3:
-            
+
             raise RuntimeError('The area requested spans more than 3 UTM ' +
                                ' zones.')
-        
+
         maxArea = 0
 
         for feature in layer:
@@ -360,16 +383,78 @@ class EvhrToA(object):
 
         return proj4
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # _initInputScenes
+    # -------------------------------------------------------------------------
+    def _initInputScenes(self, envelope=None, dgScenes=None):
+
+        # ---
+        # We need both an envelope and a scene list.  If there is no envelope,
+        # expect a scene list and compute its envelope.  If there is no scene
+        # list, expect an envelope and query for scenes within it.
+        # ---
+        if not envelope and not dgScenes:
+
+            raise RuntimeError('Either an envelope or a scene list ' +
+                               'must be provided.')
+
+        # ---
+        # Having an envelope and scene list is confusing.
+        # ---
+        if envelope and dgScenes:
+
+            raise RuntimeError('Either an envelope or a scene list ' +
+                               'must be provided, but not both.')
+
+        # ---
+        # When no scene list is given, query only multispectral scenes.
+        # ---
+        if envelope:
+
+            fpScenes = self._queryScenes(envelope,
+                                         includeMultispec=True,
+                                         includePan=False)
+
+            if self._logger:
+                self._logger.info(str(len(fpScenes)) + ' scenes found.')
+
+            dgScenes = set()
+
+            for s in fpScenes:
+
+                try:
+                    dgf = DgFile(s)
+                    dgScenes.add(dgf)
+
+                except FileNotFoundError as e:
+
+                    if self._logger:
+                        self._logger.warn(e)
+
+        if not dgScenes:
+            raise RuntimeError('No valid scenes found.')
+
+        dgScenes = self._removeDuplicates(dgScenes)
+        envelope = envelope or self._computeEnvelope(list(dgScenes))
+        self._outSrsProj4 = self._getUtmSrs(envelope)
+
+        return dgScenes, envelope
+
+    # -------------------------------------------------------------------------
     # mergeBands
     #
     # stripToToA -> mergeBands
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @staticmethod
-    def _mergeBands(bandFiles, outFileName, logger):
+    def _mergeBands(bandFiles, outFileName, logger) -> None:
 
         if logger:
             logger.info('Merging bands into ' + str(outFileName))
+
+        if len(bandFiles) == 0:
+
+            logger.warn('No band files to merge.')
+            return
 
         bandDs = gdal.Open(bandFiles[0])
         driver = gdal.GetDriverByName('GTiff')
@@ -417,18 +502,18 @@ class EvhrToA(object):
         for bandFile in bandFiles:
             os.remove(bandFile)
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # mosaicAndClipDemTiles
     #
     # To build the SRTM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp /adapt/nobackup/projects/dem/SRTM/1-ArcSec/*.hgt
+    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp  /explore/nobackup/projects/dem/SRTM/1-ArcSec/*.hgt
     #
     # To build the ASTERGDEM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp /adapt/nobackup/projects/dem/ASTERGDEM/v2/*dem.tif
+    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp  /explore/nobackup/projects/dem/ASTERGDEM/v2/*dem.tif
     #
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     #     -> mosaicAndClipDemTiles
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @staticmethod
     def _mosaicAndClipDemTiles(outDemName, envelope, demDir, logger):
 
@@ -616,7 +701,8 @@ class EvhrToA(object):
     # -> runOneStrip
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, panResolution, logger):
+                      demDir, toaDir, outSrsProj4, panResolution, panSharpen,
+                      logger):
 
         for key in iter(stripsWithScenes):
 
@@ -629,19 +715,29 @@ class EvhrToA(object):
                                  toaDir,
                                  outSrsProj4,
                                  panResolution,
+                                 panSharpen,
                                  logger)
 
     # -------------------------------------------------------------------------
     # _queryScenes
     # -------------------------------------------------------------------------
-    def _queryScenes(self, envelope):
+    def _queryScenes(self, envelope, includeMultispec=True, includePan=False):
+
+        if not includeMultispec and not includePan:
+
+            raise RuntimeError('Queries must request multispectral or ' +
+                               'panchromatic images.')
 
         fpq = FootprintsQuery(logger=self._logger)
         fpq.addAoI(envelope)
         fpq.setMinimumOverlapInDegrees()
+        fpq.setMaximumScenes(EvhrToA.MAXIMUM_SCENES)
 
-        MAXIMUM_SCENES = 100
-        fpq.setMaximumScenes(MAXIMUM_SCENES)
+        if not includeMultispec:
+            fpq.setMultispectralOff()
+
+        if not includePan:
+            fpq.setPanchromaticOff()
 
         fpScenes = fpq.getScenes()
         sceneFiles = fpq.fpScenesToFileNames(fpScenes)
@@ -652,6 +748,73 @@ class EvhrToA(object):
         return sceneFiles
 
     # -------------------------------------------------------------------------
+    # removeDuplicates
+    # -------------------------------------------------------------------------
+    def _removeDuplicates(self, dgScenes):
+
+        if len(dgScenes) == 1:
+            return dgScenes
+
+        # ---
+        # Footprints might erroneously not be normalized.  Remove duplicates
+        # now.  Dg_mosaic would find them later and throw an exception.
+        # ---
+        numBefore = len(dgScenes)
+        dgScenes = list(set(dgScenes))
+        numAfter = len(dgScenes)
+
+        if self._logger:
+            self._logger.info('Set operation removed ' +
+                              str(numAfter - numBefore) +
+                              ' scenes.')
+
+        # ---
+        # There are also cases where NTF files of the same name exist in two
+        # different directories, the .../X1BS/... and the .../M1BS/...
+        # directories.  Their NTF files differ, yet they have identical XML
+        # files.  Remove the X1BS version.  First, sort the list to make
+        # searching easier.
+        # ---
+        sortedScenes = dgScenes.copy()
+        sortedScenes.sort(reverse=True)  # Put X1BS first, so M1BS is added.
+        dgScenes = []
+        numScenes = len(sortedScenes)
+
+        for i in range(numScenes-1):
+
+            # ---
+            # If the base name of this item matches the base name of the
+            # next item, check the XML.
+            # ---
+            ntf1 = sortedScenes[i].fileName()
+            ntf2 = sortedScenes[i+1].fileName()
+
+            if os.path.basename(ntf1) == os.path.basename(ntf2):
+
+                xml1 = os.path.splitext(ntf1)[0] + '.xml'
+                xml2 = os.path.splitext(ntf2)[0] + '.xml'
+
+                # If the contents of the XML differs, keep them.
+                if not filecmp.cmp(xml1, xml2, False):
+
+                    dgScenes.append(sortedScenes[i])
+
+                else:
+                    if self._logger:
+                        self._logger.info('XML match: ' + ntf1 + ' ' + ntf2)
+            else:
+
+                dgScenes.append(sortedScenes[i])
+
+        numAfter = len(dgScenes)
+
+        if self._logger:
+            self._logger.info(str(numAfter) +
+                              ' after removal of matching XMLs.')
+
+        return dgScenes
+
+    # -------------------------------------------------------------------------
     # run
     # -> queryScenes
     # -> collectImagesByStrip
@@ -659,66 +822,18 @@ class EvhrToA(object):
     # -> getUtmSrs
     # -> processStrips
     # -------------------------------------------------------------------------
-    def run(self, envelope=None, sceneList=None):
+    def run(self, envelope=None, inDgScenes=None, panSharpen=False):
 
         if self._logger:
             self._logger.info('In run')
 
-        # ---
-        # We need both an envelope and a scene list.  If there is no envelope,
-        # expect a scene list and compute its envelope.  If there is no scene
-        # list, expect an envelope and query for scenes within it.
-        # ---
-        if not envelope and not sceneList:
-
-            raise RuntimeError('Either an envelope or a scene list ' +
-                               'must be provided.')
+        dgScenes, envelope = self._initInputScenes(envelope, inDgScenes)
+        stripsWithDgScenes = self._collectImagesByStrip(dgScenes)
 
         # ---
-        # Call to getUtmSrs is duplicated below for the scene list case.  When
-        # an envelope is specified, validate its size early.
+        # Process the strips.
         # ---
-        if not sceneList:
-
-            sceneList = self._queryScenes(envelope)
-            self._outSrsProj4 = self._getUtmSrs(envelope)
-
-        # ---
-        # Convert FootprintsQuery and Path objects to strings.  The Path class
-        # is new in Python 3.2.  We should use them extensively.  There isn't
-        # time to do that now, so cast them to strings.
-        # ---
-        sceneList = [str(scene) for scene in sceneList]
-
-        # ---
-        # Footprints might erroneously not be normalized.  Remove duplicates
-        # now.  Dg_mosaic would find them later and throw an exception.
-        # ---
-        sceneList = list(set(sceneList))
-        sceneList.sort()
-
-        # ---
-        # _collectImagesByStrip and _computeEnvelope both instantiate each
-        # scene as a DgFile.  It will be efficient to reuse the DgFiles from
-        # _collectImagesByStrip, although this method will be a little more
-        # difficult to read.  Relative to the strip processing below, this
-        # only takes a fraction of the overall time.
-        # ---
-        stripsWithScenes = self._collectImagesByStrip(sceneList)
-
-        if not envelope:
-
-            sceneSet = set()
-
-            for key in stripsWithScenes.keys():
-                sceneSet |= set(stripsWithScenes[key])
-
-            envelope = self._computeEnvelope(list(sceneSet))
-
-            # The output SRS must be UTM.
-            self._outSrsProj4 = self._getUtmSrs(envelope)
-
-        self.processStrips(stripsWithScenes,
+        self.processStrips(stripsWithDgScenes,
                            self._bandDir,
                            self._stripDir,
                            self._orthoDir,
@@ -726,6 +841,7 @@ class EvhrToA(object):
                            self._toaDir,
                            self._outSrsProj4,
                            self._panResolution,
+                           self._panSharpen,
                            self._logger)
 
     # -------------------------------------------------------------------------
@@ -737,7 +853,8 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, panResolution, logger):
+                     toaDir, outSrsProj4, panResolution, panSharpen, logger,
+                     thisToaIsForPanSharpening=False):
 
         if logger:
             logger.info('In runOneStrip')
@@ -749,28 +866,141 @@ class EvhrToA(object):
                                                        logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
-        mapproject_threads = 4
 
-        EvhrToA._stripToToa(imageForEachBandInStrip,
-                            toaName,
-                            orthoDir,
-                            demDir,
-                            toaDir,
-                            outSrsProj4,
-                            mapproject_threads,
-                            panResolution,
-                            logger)
+        if thisToaIsForPanSharpening:
+            toaName = toaName.replace('-toa.tif', '-toaForPanSharp.tif')
+
+        if not os.path.exists(toaName):
+
+            mapproject_threads = 4
+
+            EvhrToA._stripToToa(imageForEachBandInStrip,
+                                toaName,
+                                orthoDir,
+                                demDir,
+                                toaDir,
+                                outSrsProj4,
+                                mapproject_threads,
+                                panResolution,
+                                logger)
+
+        if panSharpen and scenes[0].isMultispectral():
+
+            EvhrToA._runPanSharpening(toaName, scenes[0].getCatalogId(),
+                                      stripID, bandDir, stripDir, orthoDir,
+                                      demDir, toaDir, outSrsProj4,
+                                      panResolution, logger)
+
+        return toaName
 
     # --------------------------------------------------------------------------
+    # runPanSharpening
+    # --------------------------------------------------------------------------
+    @staticmethod
+    def _runPanSharpening(toaName, catalogID, stripID, bandDir, stripDir,
+                          orthoDir, demDir, toaDir, outSrsProj4, panResolution,
+                          logger):
+
+        if logger:
+            logger.info('In _runPanSharpening')
+
+        # ---
+        # Get the panchromatic mates of the ToA.
+        # ---
+        fpq = FootprintsQuery(logger=logger)
+        fpq.setMinimumOverlapInDegrees()
+        fpq.setMaximumScenes(EvhrToA.MAXIMUM_SCENES)
+        fpq.setMultispectralOff()
+        fpq.addCatalogID([catalogID])
+        fpScenes = fpq.getScenes()
+        panDgMates = [DgFile(s) for s in fpq.fpScenesToFileNames(fpScenes)]
+
+        if not panDgMates:
+
+            logger.WARN('There are not panchromatic scenes for catalog ID ' +
+                        str(catalogID))
+
+            return
+
+        # ---
+        # Make a ToA from the panchromatic mates.  If any of these scenes were
+        # passed into the application from the user, they will not be
+        # redundantly processed.  Each step checks for the existence of the
+        # file it is supposed to create before running its code.
+        #
+        # This should look a lot like the regular EVHR process.
+        #
+        # Note, if we could predict the name of the pan. sharpened ToA, we
+        # could skip its creation when it already exists.
+        # ---
+        if logger:
+            logger.info('Creating pan. ToA for sharpening')
+
+        panSharpeningToA = EvhrToA._runOneStrip(stripID,
+                                                panDgMates,
+                                                bandDir,
+                                                stripDir,
+                                                orthoDir,
+                                                demDir,
+                                                toaDir,
+                                                outSrsProj4,
+                                                panResolution,
+                                                False,
+                                                logger,
+                                                thisToaIsForPanSharpening=True)
+
+        # ---
+        # Warp the pan. ToA to match the multispectral ToA it will sharpen.
+        # ---
+        warpedPanSharpeningToA = \
+            panSharpeningToA.replace('-toaForPanSharp.tif', '-warpedPsToa.tif')
+
+        if logger:
+            logger.info('Creating ' + str(warpedPanSharpeningToA))
+
+        if not os.path.exists(warpedPanSharpeningToA):
+
+            inputEnv = \
+                GeospatialImageFile(toaName, None, None, logger).envelope()
+
+            cmd = 'gdalwarp' + \
+                  ' -dstnodata -10001 -co COMPRESS=LZW -co BIGTIFF=YES' + \
+                  ' -te ' + str(inputEnv.ulx()) + ' ' + str(inputEnv.lry()) + \
+                  ' ' + str(inputEnv.lrx()) + ' ' + str(inputEnv.uly()) + \
+                  ' ' + panSharpeningToA + \
+                  ' ' + warpedPanSharpeningToA
+
+            SystemCommand(cmd, logger, True)
+
+        # ---
+        # Pan sharpen.
+        # ---
+        psTempName = toaName.replace('-toa.tif', '-toa-sharpened.tif')
+
+        if logger:
+            logger.info('Creating ' + str(psTempName))
+
+        if not os.path.exists(psTempName):
+
+            cmd = 'gdal_pansharpen.py' + \
+                  ' -nodata -10001 -co COMPRESS=LZW -co BIGTIFF=YES' + \
+                  ' ' + warpedPanSharpeningToA + \
+                  ' ' + toaName + \
+                  ' ' + psTempName
+
+            SystemCommand(cmd, logger, True)
+
+    # ------------------------------------------------------------------------
     # scenesToStripFromBandList
     #
-    # Input: a list of scenes all belonging to the same strip and list of bands
+    # Input: a list of scenes all belonging to the same strip and list of
+    # bands
     #
     # Output:  a mosaic of all the scenes for each band:  a mosaic containing
     # band1 from every scene, a mosaic containing band2 from every scene ...
     #
     # run -> processStrips -> runOneStrip -> createStrip
-    # --------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
     @staticmethod
     def _scenesToStripFromBandList(stripName, stripScenes, bands, bandDir,
                                    stripDir, logger):
@@ -807,11 +1037,35 @@ class EvhrToA(object):
                     format(stripBandFile.replace('.r100.tif', ''),
                            bandScenesStr)
 
-                SystemCommand(cmd, logger, True)
+                try:
+                    SystemCommand(cmd, logger, raiseException=True)
 
-            stripBandDg = DgFile(stripBandFile)
-            stripBandDg.setBandName(bandName)
-            stripBandList.append(stripBandDg)
+                except Exception as e:
+
+                    if 'Input images have same input location which ' + \
+                       'could be caused by repeated XML file or invalid ' + \
+                       'TLC information.' in str(e):
+
+                        if logger:
+
+                            msg = 'Skipping ' + stripName + ' due to ' + \
+                                  str(e)
+
+                            logger.warn(msg)
+
+                        break
+
+                else:
+
+                    stripBandDg = DgFile(stripBandFile)
+                    stripBandDg.setBandName(bandName)
+                    stripBandList.append(stripBandDg)
+
+            else:
+
+                stripBandDg = DgFile(stripBandFile)
+                stripBandDg.setBandName(bandName)
+                stripBandList.append(stripBandDg)
 
         # Return the list of band strips.
         return stripBandList
@@ -829,6 +1083,11 @@ class EvhrToA(object):
             logger.info('In _stripToToa, processing ' + toaName)
 
         if os.path.exists(toaName):
+            return
+
+        if len(imageForEachBandInStrip) == 0:
+
+            logger.warn('No strip images.')
             return
 
         toaBands = []

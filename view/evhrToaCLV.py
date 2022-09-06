@@ -9,6 +9,7 @@ from osgeo import gdal
 from osgeo import osr
 from osgeo.osr import SpatialReference
 
+from core.model.DgFile import DgFile
 from core.model.Envelope import Envelope
 from core.model.ILProcessController import ILProcessController
 
@@ -52,7 +53,12 @@ def main():
                         default=1,
                         choices=[0.5, 1],
                         help='The resolution, in meters, of panchromatic '
-                              'output images')
+                             'output images')
+
+    parser.add_argument('--pan_sharpen',
+                        action='store_true',
+                        help='Apply panchromatic sharpening to the output '
+                             'ToA images.')
 
     group = parser.add_mutually_exclusive_group(required=True)
 
@@ -115,17 +121,23 @@ def main():
     ch.setLevel(logging.INFO)
     logger.addHandler(ch)
 
+    # ---
+    # Make DgFiles.
+    # ---
+    dgScenes = [DgFile(str(s), logger) for s in scenes] if scenes else None
+
     if args.celery:
 
-        with ILProcessController('evhr.model.CeleryConfiguration') as processController:
+        with ILProcessController('evhr.model.CeleryConfiguration') as \
+                processController:
 
-            toa = EvhrToaCelery(args.o, args.pan_res, logger)
-            toa.run(env, scenes)
+            toa = EvhrToaCelery(args.o, args.pan_res, args.pan_sharpen, logger)
+            toa.run(env, dgScenes)
 
     else:
 
-        toa = EvhrToA(args.o, args.pan_res, logger)
-        toa.run(env, scenes)
+        toa = EvhrToA(args.o, args.pan_res, args.pan_sharpen, logger)
+        toa.run(env, dgScenes)
 
 
 # -----------------------------------------------------------------------------

@@ -10,9 +10,9 @@ from osgeo import osr
 from osgeo.osr import SpatialReference
 
 from core.model.Envelope import Envelope
+from core.model.ILProcessController import ILProcessController
 from evhr.model.DemCreator import DemCreator
 from evhr.model.DemCreatorCelery import DemCreatorCelery
-from evhr.model.ILProcessController import ILProcessController
 
 
 # -----------------------------------------------------------------------------
@@ -94,7 +94,8 @@ def main():
     # ---
     if args.celery:
 
-        with ILProcessController('evhr.model.CeleryConfiguration') as processController:
+        with ILProcessController('evhr.model.CeleryConfiguration') as \
+             processController:
 
             dc = DemCreatorCelery(args.o, logger)
 

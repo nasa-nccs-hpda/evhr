@@ -67,50 +67,43 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # createCloudOptimizedGeotiffs
     # -------------------------------------------------------------------------
-    def _createCloudOptimizedGeotiffs(self, workDir):
+    @staticmethod
+    def _createCloudOptimizedGeotiffs(workDir, logger):
 
-        files = self._getFileList(workDir)
+        if logger:
+            logger.info('In createCloudOptimizedGeotiffs')
+
+        files = DemCreator._getFileList(workDir)
+        cogs = []
 
         for f in files:
 
             name, ext = os.path.splitext(f)
+            inFile = os.path.join(workDir, f)
+            cogName = os.path.join(workDir, name + 'CoG.tif')
 
             cmd = 'gdal_translate ' + \
-                  f + \
-                  ' ' + name + '-CoG.tif' + \
+                  inFile + \
+                  ' ' + cogName + \
                   ' -co TILED=YES' + \
                   ' -co COPY_SRC_OVERVIEWS=YES' + \
                   ' -co COMPRESS=LZW'
 
-            SystemCommand(cmd, self._logger, True)
+            SystemCommand(cmd, logger, True)
+
+            if not os.path.exists(cogName):
+                logger.warn('CoG, ' + cogName, ' was not created.')
+
+            else:
+                cogs.append(cogName)
+
+        return cogs
 
     # -------------------------------------------------------------------------
     # demComplete
-    #
-    # out-DEM_1m.tif, out-DEM_24m_hs_az315.tif, out-DEM_24m.tif
-    # out-DEM_4m_hs_az315.tif, out-DEM_4m.tif,
-    # WV02_20161214_103001005F18FD00_103001005FC39D00_ortho_4m.tif,
-    # WV02_20161214_103001005F18FD00_103001005FC39D00_ortho.tif
     # -------------------------------------------------------------------------
     @staticmethod
     def demComplete(workDir, logger=None):
-
-        # pairName = os.path.basename(workDir)
-        #
-        # # files = ['out-DEM_1m.tif', 'out-DEM_24m_hs_az315.tif',
-        # #          'out-DEM_24m.tif', 'out-DEM_4m_hs_az315.tif',
-        # #          'out-DEM_4m.tif',
-        # #          pairName + '_ortho_4m.tif',
-        # #          pairName + '_ortho.tif']
-        #
-        # files = [pairName + '-DEM_1m.tif',
-        #          pairName + '-DEM_24m_hs_az315.tif',
-        #          pairName + '-DEM_24m.tif',
-        #          pairName + '-DEM_4m_hs_az315.tif',
-        #          pairName + '-DEM_4m.tif',
-        #          pairName + '_ortho_4m.tif',
-        #          pairName + '_ortho.tif']
-        #
 
         files = DemCreator._getFileList(workDir)
 
@@ -320,77 +313,85 @@ class DemCreator(object):
             os.mkdir(workDir)
 
         # If the DEM exists, do not proceed.
-        if DemCreator.demComplete(workDir):
-            return
+        if not DemCreator.demComplete(workDir):
 
-        # Copy the scenes to the working directory using sym links
-        for scene in dgScenes:
+            # Copy the scenes to the working directory using sym links
+            for scene in dgScenes:
 
-            ext = os.path.splitext(scene)[1]  # could be .tif or .ntf
-            dst = os.path.join(workDir, os.path.basename(scene))
+                ext = os.path.splitext(scene)[1]  # could be .tif or .ntf
+                dst = os.path.join(workDir, os.path.basename(scene))
 
-            if not os.path.exists(dst):
-                os.symlink(scene, dst)
+                if not os.path.exists(dst):
+                    os.symlink(scene, dst)
 
-            dstXml = dst.replace(ext, '.xml')
+                dstXml = dst.replace(ext, '.xml')
 
-            if not os.path.exists(dstXml):
-                os.symlink(scene.replace(ext, '.xml'), dstXml)
+                if not os.path.exists(dstXml):
+                    os.symlink(scene.replace(ext, '.xml'), dstXml)
 
-        # DEM application settings.
-        DG_STEREO_DIR = '/opt/DgStereo'
-        DEM_APPLICATION = os.path.join(DG_STEREO_DIR, 'evhr', 'dg_stereo.sh')
-        PAIR_NAME = pairName
-        TEST = 'false'  # 'true'
-        ADAPT = 'true'
-        MAP = 'false'
-        RUN_PSTEREO = 'true'
-        BATCH_NAME = '"' + pairName + '"'
-        SGM = 'false'
-        SUB_PIX_KNL = '15'
-        ERODE_MAX = '24'
-        COR_KNL_SIZE = '21'
-        MYSTERY1 = '300'
-        OUT_DIR = outDir
-        QUERY = 'false'
-        CROP_WINDOW = '"0 15000 5000 5000"'
-        USE_NODE_LIST = 'false'
-        NODES = os.path.join(DG_STEREO_DIR, 'nodeList.txt')
+            # DEM application settings.
+            DG_STEREO_DIR = '/opt/DgStereo'
+            PAIR_NAME = pairName
+            TEST = 'true'  # Keeps intermediate files
+            ADAPT = 'true'
+            MAP = 'false'
+            RUN_PSTEREO = 'true'
+            BATCH_NAME = '"' + pairName + '"'
+            SGM = 'false'
+            SUB_PIX_KNL = '15'
+            ERODE_MAX = '24'
+            COR_KNL_SIZE = '21'
+            MYSTERY1 = '300'
+            OUT_DIR = outDir
+            QUERY = 'false'
+            CROP_WINDOW = '"0 15000 5000 5000"'
+            USE_NODE_LIST = 'false'
+            NODES = os.path.join(DG_STEREO_DIR, 'nodeList.txt')
 
-        # Create the DEM.
-        cmd = DEM_APPLICATION + \
-            ' ' + PAIR_NAME + \
-            ' ' + TEST + \
-            ' ' + ADAPT + \
-            ' ' + MAP + \
-            ' ' + RUN_PSTEREO + \
-            ' ' + BATCH_NAME + \
-            ' _placeholder_for_rpcdem_' + \
-            ' ' + USE_NODE_LIST + \
-            ' ' + NODES + \
-            ' ' + SGM + \
-            ' ' + SUB_PIX_KNL + \
-            ' ' + ERODE_MAX + \
-            ' ' + COR_KNL_SIZE + \
-            ' ' + MYSTERY1 + \
-            ' ' + OUT_DIR + \
-            ' ' + QUERY + \
-            ' ' + CROP_WINDOW
+            DEM_APPLICATION = os.path.join(DG_STEREO_DIR,
+                                           'evhr',
+                                           'dg_stereo.sh')
 
-        SystemCommand(cmd, logger, True)
+            # Create the DEM.
+            cmd = DEM_APPLICATION + \
+                ' ' + PAIR_NAME + \
+                ' ' + TEST + \
+                ' ' + ADAPT + \
+                ' ' + MAP + \
+                ' ' + RUN_PSTEREO + \
+                ' ' + BATCH_NAME + \
+                ' _placeholder_for_rpcdem_' + \
+                ' ' + USE_NODE_LIST + \
+                ' ' + NODES + \
+                ' ' + SGM + \
+                ' ' + SUB_PIX_KNL + \
+                ' ' + ERODE_MAX + \
+                ' ' + COR_KNL_SIZE + \
+                ' ' + MYSTERY1 + \
+                ' ' + OUT_DIR + \
+                ' ' + QUERY + \
+                ' ' + CROP_WINDOW
 
-        # ---
-        # dg_stereo.sh leaves many files in its wake.  Presumably, it knows
-        # when it has finished without a problem.  However, there have been
-        # cases to the contrary.  At least until this is solved, use this
-        # definitive, independent verification of success.
-        # ---
-        if not DemCreator.demComplete(workDir, logger):
+            import pdb
+            pdb.set_trace()
+            SystemCommand(cmd, logger, True)
 
-            if logger:
-                logger.warn('DEM did not complete: ' + workDir)
+            # ---
+            # dg_stereo.sh leaves many files in its wake.  Presumably, it knows
+            # when it has finished without a problem.  However, there have been
+            # cases to the contrary.  At least until this is solved, use this
+            # definitive, independent verification of success.
+            # ---
+            if not DemCreator.demComplete(workDir, logger):
 
-        self._createCloudOptimizedGeotiffs(workDir)
+                raise RuntimeError('DEM did not complete: ' + workDir)
+
+            else:
+
+                if logger:
+                    logger.info('DEM completed in: ' + workDir)
+
+        cogs = DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
 
     # -------------------------------------------------------------------------
     # reconcilePairing
@@ -453,10 +454,6 @@ class DemCreator(object):
         pairs = self._getPairs(fpScenes)
         self.processPairs(pairs)
 
-        # import pandas as pd
-        # savedPairs = \
-        #     pd.read_pickle('/adapt/nobackup/people/rlgill/pairs.pickle')
-
         self.processPairs(savedPairs)
 
     # -------------------------------------------------------------------------
@@ -479,9 +476,6 @@ class DemCreator(object):
         fpq = self._getBaseQuery()
         fpq.addScenesFromNtf(scenes)
         fpScenes = fpq.getScenes()
-
-        # fpScenes = \
-        #     fpq.getScenesFromResultsFile('/att/nobackup/rlgill/query1')
 
         pairs = self._getPairs(fpScenes)
         self.processPairs(pairs)
