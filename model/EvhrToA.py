@@ -278,26 +278,6 @@ class EvhrToA(object):
         return stripBandList
 
     # -------------------------------------------------------------------------
-    # getMatesForPanSharpening
-    # -------------------------------------------------------------------------
-    def _getMatesForPanSharpening(self):
-
-        # ---
-        # If pan sharpening was requested, query the panchromatic counterparts
-        # of the multispectral scenes.
-        # ---
-        multispecCats = [s.getCatalogId() for s in dgScenes if
-                         s.isMultispectral()]
-
-        fpq = FootprintsQuery(logger=self._logger)
-        fpq.setMinimumOverlapInDegrees()
-        fpq.setMaximumScenes(MAXIMUM_SCENES)
-        fpq.setMultispectralOff()
-        fpScenes = fpq.getScenes()
-        panMates = fpq.fpScenesToFileNames(fpScenes)
-        return panMates
-
-    # -------------------------------------------------------------------------
     # getUtmSrs
     #
     # This method returns the UTM SRS definition in PROJ4 format.
@@ -893,9 +873,9 @@ class EvhrToA(object):
 
         return toaName
 
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # runPanSharpening
-    # --------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     @staticmethod
     def _runPanSharpening(toaName, catalogID, stripID, bandDir, stripDir,
                           orthoDir, demDir, toaDir, outSrsProj4, panResolution,

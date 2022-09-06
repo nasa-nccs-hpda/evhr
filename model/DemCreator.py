@@ -372,8 +372,6 @@ class DemCreator(object):
                 ' ' + QUERY + \
                 ' ' + CROP_WINDOW
 
-            import pdb
-            pdb.set_trace()
             SystemCommand(cmd, logger, True)
 
             # ---
