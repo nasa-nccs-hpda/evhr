@@ -26,6 +26,7 @@ class EvhrToaCelery(EvhrToA):
         # Initialize the base class.
         super(EvhrToaCelery, self).__init__(outDir,
                                             panResolution,
+                                            panSharpen,
                                             unusedLogger)
 
     # -------------------------------------------------------------------------
