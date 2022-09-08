@@ -18,7 +18,8 @@ class EvhrToaCelery(EvhrToA):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, panResolution=1, unusedLogger=None):
+    def __init__(self, outDir, panResolution=1, panSharpen=False,
+                 unusedLogger=None):
 
         logger.info('In EvhrToaCelery.__init__')
 
@@ -33,7 +34,7 @@ class EvhrToaCelery(EvhrToA):
     # run -> processStrips
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, panResolution,
+                      demDir, toaDir, outSrsProj4, panResolution, panSharpen,
                       unusedLogger):
 
         logger.info('In EvhrToaCelery.processStrips')
@@ -48,6 +49,7 @@ class EvhrToaCelery(EvhrToA):
             toaDir,
             outSrsProj4,
             panResolution,
+            panSharpen,
             logger) for key in iter(stripsWithScenes))
 
         result = wpi.apply_async()
@@ -63,7 +65,8 @@ class EvhrToaCelery(EvhrToA):
     @staticmethod
     @app.task(serializer='pickle')
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, panResolution, unusedLogger):
+                     toaDir, outSrsProj4, panResolution, panSharpen,
+                     unusedLogger, thisToaIsForPanSharpening=False):
 
         logger.info('In EvhrToaCelery._runOneStrip')
 
@@ -85,3 +88,10 @@ class EvhrToaCelery(EvhrToA):
                             mapproject_threads,
                             panResolution,
                             logger)
+
+        if panSharpen and scenes[0].isMultispectral():
+
+            EvhrToA._runPanSharpening(toaName, scenes[0].getCatalogId(),
+                                      stripID, bandDir, stripDir, orthoDir,
+                                      demDir, toaDir, outSrsProj4,
+                                      panResolution, logger)
