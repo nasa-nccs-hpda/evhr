@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from core.model.DgFile import DgFile
+# from core.model.DgFile import DgFile
 from core.model.SystemCommand import SystemCommand
 
 
@@ -14,7 +14,7 @@ class ToaCalculation(object):
     offsets in addition to solar exoatmospheric irradiance (calibration coeff)
 
     L = gain * orthoDN * (abscalFactor/bandwidth) + offset --> image
-    Reflectance = (L * earthSunDist^2 * pi)/ (calCoeff * cos(sunAngle))--> image
+    Reflectance = (L * earthSunDist^2 * pi)/ (calCoeff * cos(sunAngle))-->image
     And scale by 10000
 
     So to obtain Reflectance image in one step:
@@ -66,7 +66,26 @@ class ToaCalculation(object):
         'IK01_BAND_N': [1145.8, 1.043, -8.869]
     }
 
-    NO_DATA_VALUE = -9999
+    NO_DATA_VALUE = -10001
+
+    # --------------------------------------------------------------------------
+    # binToaValues()
+    # --------------------------------------------------------------------------
+    @staticmethod
+    def binToaValues(toaBandFileTemp, toaBandFile, logger=None):
+
+        # Rarely, some pixels may be outside of the (-10000, 10000) range
+        # Correct those values here by binning to valid range
+
+        calc = '-10000*(A<-10000)+10000*(A>10000) + A*((A>=-10000)*(A<=10000))'
+
+        cmd = 'gdal_calc.py --calc="{}" --outfile={} -A {} --NoDataValue={} \
+                --type=Int16'.format(calc, toaBandFile, toaBandFileTemp,    \
+                                                ToaCalculation.NO_DATA_VALUE)
+
+        sCmd = SystemCommand(cmd, logger, True)
+
+        os.remove(toaBandFileTemp)
 
     # --------------------------------------------------------------------------
     # calcEarthSunDist()
@@ -106,9 +125,9 @@ class ToaCalculation(object):
     # calcToaReflectance()
     # --------------------------------------------------------------------------
     @staticmethod
-    def calcToaReflectance(orthoBandFile, toaBandFile, logger=None):
+    def calcToaReflectance(dgOrthoFile, toaBandFile, logger=None):
 
-        dgOrthoFile = DgFile(orthoBandFile)
+        # dgOrthoFile = DgFile(orthoBandFile)
 
         bandName = dgOrthoFile.getBandName()
         key = '{}_{}'.format(dgOrthoFile.sensor(), bandName)
@@ -131,27 +150,35 @@ class ToaCalculation(object):
 
         cmd = ToaCalculation.BASE_SP_CMD + \
             'image_calc -c "{}" {} -d int16 \
-            --output-nodata-value {} -o {}'. \
+            --output-nodata-value {} --mo bandName={} -o {}'. \
             format(calc,
-                   orthoBandFile,
+                   dgOrthoFile.fileName(),
                    ToaCalculation.NO_DATA_VALUE,
+                   bandName,
                    toaBandFile)
 
-        sCmd = SystemCommand(cmd, logger, True)
+        SystemCommand(cmd, logger, True)
 
     # --------------------------------------------------------------------------
     # run()
     # --------------------------------------------------------------------------
     @staticmethod
-    def run(orthoBandFile, outputDir, logger=None):
+    def run(orthoBandDg, outputDir, logger=None):
 
-        baseName = os.path.basename(orthoBandFile).replace('.tif', '-toa.tif')
+        baseName = os.path.basename(orthoBandDg.fileName()).\
+                                    replace('.tif', '-toa.tif')
+
         toaBandFile = os.path.join(outputDir, baseName)
+        toaBandFileTemp = toaBandFile.replace('.tif', '-unbinned.tif')
 
         if not os.path.isfile(toaBandFile):
 
-            ToaCalculation.calcToaReflectance(orthoBandFile,
-                                              toaBandFile,
+            ToaCalculation.calcToaReflectance(orthoBandDg,
+                                              toaBandFileTemp,
                                               logger)
+
+            ToaCalculation.binToaValues(toaBandFileTemp,
+                                        toaBandFile,
+                                        logger)
 
         return toaBandFile
