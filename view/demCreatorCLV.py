@@ -18,9 +18,12 @@ from evhr.model.DemCreatorCelery import DemCreatorCelery
 # -----------------------------------------------------------------------------
 # main
 #
-# evhr/view/demCreatorCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testDEM3/ --scenes  '/css/nga/WV02/1B/2018/278/WV02_10300100889D0300_X1BS_502602073050_01/WV02_20181005212447_10300100889D0300_18OCT05212447-P1BS-502602073050_01_P002.ntf'
+# evhr/view/demCreatorCLV.py -t -o /explore/nobackup/people/rlgill/SystemTesting/testDEM3/ --scenes  '/css/nga/WV02/1B/2018/278/WV02_10300100889D0300_X1BS_502602073050_01/WV02_20181005212447_10300100889D0300_18OCT05212447-P1BS-502602073050_01_P002.ntf'
 #
-# evhr/view/demCreatorCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testDEM/ -e -148 65 -147.5 64.5 4326
+# evhr/view/demCreatorCLV.py -t -o /explore/nobackup/people/rlgill/SystemTesting/testDEM3/ -e -148 65 -147.5 64.5 4326
+#
+# evhr/view/demCreatorCLV.py -t -o /explore/nobackup/people/rlgill/SystemTesting/testDEM3/ --catIds 10300100889D0300
+#
 # -----------------------------------------------------------------------------
 def main():
 
@@ -32,6 +35,10 @@ def main():
                         action='store_true',
                         help='Use Celery for distributed processing.')
 
+    parser.add_argument('--cog',
+                        action='store_true',
+                        help='Create cloud-optimized GeoTiffs.')
+
     parser.add_argument('--logToFile',
                         action='store_true',
                         help='Print messages to a file, \
@@ -41,7 +48,16 @@ def main():
                         default='.',
                         help='Path to output directory')
 
+    parser.add_argument('-t',
+                        action='store_true',
+                        help='Run in test mode for speed.')
+
     group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument('--catIds',
+                       type=str,
+                       nargs='*',
+                       help='Catalog IDs')
 
     group.add_argument('-e',
                        nargs=5,
@@ -97,7 +113,7 @@ def main():
         with ILProcessController('evhr.model.CeleryConfiguration') as \
              processController:
 
-            dc = DemCreatorCelery(args.o, logger)
+            dc = DemCreatorCelery(args.o, logger, args.t, args.cog)
 
             if env:
                 dc.runEnv(env)
@@ -105,18 +121,24 @@ def main():
             elif args.scenes:
                 dc.runScenes(args.scenes)
 
+            elif args.catIds:
+                dc.runCatIds(args.catIds)
+
             else:
                 raise RuntimeError('Scenes or an envelope must be provided.')
 
     else:
 
-        dc = DemCreator(args.o, logger)
+        dc = DemCreator(args.o, logger, args.t, args.cog)
 
         if env:
             dc.runEnv(env)
 
         elif args.scenes:
             dc.runScenes(args.scenes)
+
+        elif args.catIds:
+            dc.runCatIds(args.catIds)
 
         else:
             raise RuntimeError('Scenes or an envelope must be provided.')
