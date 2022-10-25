@@ -40,13 +40,13 @@ class DemCreatorCelery(DemCreator):
                         key,
                         pairs[key],
                         self._outDir,
-                        self._createCOG,
                         self._testMode,
+                        self._createCOG,
                         logger) for key in pairs)
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
-
+            
         return result
 
     # -------------------------------------------------------------------------
