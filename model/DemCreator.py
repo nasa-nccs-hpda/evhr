@@ -1,7 +1,5 @@
 
-import glob
 import os
-# import shutil
 
 from osgeo.osr import SpatialReference
 
@@ -420,9 +418,6 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _runDgStereo(pairName, scenes, outDir, logger, testMode):
-
-        # Adjust the crop window to ensure it is within the images.
-        dgScene0 = DgFile(scenes[0])
 
         DG_STEREO_DIR = '/opt/DgStereo'
         PAIR_NAME = pairName
