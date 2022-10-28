@@ -744,8 +744,10 @@ class EvhrToA(object):
         numAfter = len(dgScenes)
 
         if self._logger:
+            self._logger.info('Number of input scenes ' + str(numBefore))
+
             self._logger.info('Set operation removed ' +
-                              str(numAfter - numBefore) +
+                              str(numBefore - numAfter) +
                               ' scenes.')
 
         # ---
@@ -759,7 +761,8 @@ class EvhrToA(object):
         sortedScenes.sort(reverse=True)  # Put X1BS first, so M1BS is added.
         dgScenes = []
         numScenes = len(sortedScenes)
-
+        secondToLastMatched = False
+        
         for i in range(numScenes-1):
 
             # ---
@@ -782,10 +785,23 @@ class EvhrToA(object):
                 else:
                     if self._logger:
                         self._logger.info('XML match: ' + ntf1 + ' ' + ntf2)
+
+                    if i == numScenes - 2:
+                        secondToLastMatched = True
             else:
 
                 dgScenes.append(sortedScenes[i])
 
+        # ---
+        # The loop above compares the current scene to the one after, so the
+        # last scene in the list is never checked--or added to the filtered
+        # list.  If the last item checked, which is the second-to-last item,
+        # was a match, then the last item should not be added.  Otherwise,
+        # add it.
+        # ---
+        if not secondToLastMatched:
+            dgScenes.append(sortedScenes[-1])
+            
         numAfter = len(dgScenes)
 
         if self._logger:

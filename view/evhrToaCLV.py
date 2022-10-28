@@ -20,7 +20,7 @@ from evhr.model.EvhrToaCelery import EvhrToaCelery
 # -----------------------------------------------------------------------------
 # main
 #
-# evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 4326 -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --pan_res 0.5
+# evhr/view/evhrToaCLV.py -e -148 65 -147.5 64.5 4326 -o /explore/nobackup/people/rlgill/SystemTesting/testEVHR/ --pan_res 0.5
 #
 # -----
 # evhr/view/evhrToaCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --scenes_in_file /adapt/nobackup/people/rlgill/SystemTesting/scene-list-file.csv
