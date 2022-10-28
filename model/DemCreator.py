@@ -20,9 +20,11 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, logger):
+    def __init__(self, outDir, logger, testMode=False, createCOG=False):
 
+        self._createCOG = createCOG
         self._logger = logger
+        self._testMode = testMode
 
         # Output directory
         self._outDir = BaseFile(outDir).fileName()  # BaseFile tests validity.
@@ -168,13 +170,12 @@ class DemCreator(object):
 
         for pairName in pairs.keys():
 
-            missing = self._findMissing(pairName, pairs[pairName])
-            fpq = self._getBaseQuery()
-            fpq.addCatalogID(missing)
-            scenes = fpq.getScenes()
+            missing = self._findMissing(pairName, pairs[pairName])  # cat IDs
 
-            # scenes = \
-            #     fpq.getScenesFromResultsFile('/att/nobackup/rlgill/query2')
+            if missing:
+                fpq = self._getBaseQuery()
+                fpq.addCatalogID(missing)
+                fpScenes = fpq.getScenes()
 
             # ---
             # These results can contain references to strip scenes that
@@ -185,17 +186,17 @@ class DemCreator(object):
 
             for pairScene in pairs[pairName]:
 
-                for scene in scenes:
+                for fpScene in fpScenes:
 
                     try:
 
-                        if DgFile(scene.fileName()).isMate(pairName,
-                                                           DgFile(pairScene)):
+                        if DgFile(fpScene.fileName()). \
+                                  isMate(pairName, DgFile(pairScene)):
 
-                            keepers.append(scene.fileName())
+                            keepers.append(fpScene.fileName())
                             break
 
-                    except RuntimeError:
+                    except FileNotFoundError:
 
                         # ---
                         # Some FP images are missing their XML files.  Skip
@@ -263,7 +264,7 @@ class DemCreator(object):
             self._logger.info('In getPairs')
 
         # Collate scenes into pairs.
-        pairs = self._collatePairs(scenes)
+        pairs = self._collatePairs(scenes)  # {pairName: [file names]}
 
         # Search for missing mates.
         pairs, pairsWithMissingScenes = self._findMates(pairs)
@@ -295,13 +296,17 @@ class DemCreator(object):
             self._logger.info('In processPairs')
 
         for key in pairs:
-            self._processPair(key, pairs[key], self._outDir, self._logger)
+            self._processPair(key, pairs[key],
+                              self._outDir,
+                              self._testMode,
+                              self._createCOG,
+                              self._logger)
 
     # -------------------------------------------------------------------------
     # processPair
     # -------------------------------------------------------------------------
     @staticmethod
-    def _processPair(pairName, dgScenes, outDir, logger):
+    def _processPair(pairName, scenes, outDir, testMode, createCOG, logger):
 
         if logger:
             logger.info('In _processPair')
@@ -316,7 +321,7 @@ class DemCreator(object):
         if not DemCreator.demComplete(workDir):
 
             # Copy the scenes to the working directory using sym links
-            for scene in dgScenes:
+            for scene in scenes:
 
                 ext = os.path.splitext(scene)[1]  # could be .tif or .ntf
                 dst = os.path.join(workDir, os.path.basename(scene))
@@ -329,50 +334,17 @@ class DemCreator(object):
                 if not os.path.exists(dstXml):
                     os.symlink(scene.replace(ext, '.xml'), dstXml)
 
-            # DEM application settings.
-            DG_STEREO_DIR = '/opt/DgStereo'
-            PAIR_NAME = pairName
-            TEST = 'true'  # Keeps intermediate files
-            ADAPT = 'true'
-            MAP = 'false'
-            RUN_PSTEREO = 'true'
-            BATCH_NAME = '"' + pairName + '"'
-            SGM = 'false'
-            SUB_PIX_KNL = '15'
-            ERODE_MAX = '24'
-            COR_KNL_SIZE = '21'
-            MYSTERY1 = '300'
-            OUT_DIR = outDir
-            QUERY = 'false'
-            CROP_WINDOW = '"0 15000 5000 5000"'
-            USE_NODE_LIST = 'false'
-            NODES = os.path.join(DG_STEREO_DIR, 'nodeList.txt')
+            try:
+                DemCreator._runDgStereo(pairName,
+                                        scenes,
+                                        outDir,
+                                        logger,
+                                        testMode)
 
-            DEM_APPLICATION = os.path.join(DG_STEREO_DIR,
-                                           'evhr',
-                                           'dg_stereo.sh')
+            except Exception as e:
 
-            # Create the DEM.
-            cmd = DEM_APPLICATION + \
-                ' ' + PAIR_NAME + \
-                ' ' + TEST + \
-                ' ' + ADAPT + \
-                ' ' + MAP + \
-                ' ' + RUN_PSTEREO + \
-                ' ' + BATCH_NAME + \
-                ' _placeholder_for_rpcdem_' + \
-                ' ' + USE_NODE_LIST + \
-                ' ' + NODES + \
-                ' ' + SGM + \
-                ' ' + SUB_PIX_KNL + \
-                ' ' + ERODE_MAX + \
-                ' ' + COR_KNL_SIZE + \
-                ' ' + MYSTERY1 + \
-                ' ' + OUT_DIR + \
-                ' ' + QUERY + \
-                ' ' + CROP_WINDOW
-
-            SystemCommand(cmd, logger, True)
+                if not testMode:
+                    raise RuntimeError(e)
 
             # ---
             # dg_stereo.sh leaves many files in its wake.  Presumably, it knows
@@ -382,14 +354,23 @@ class DemCreator(object):
             # ---
             if not DemCreator.demComplete(workDir, logger):
 
-                raise RuntimeError('DEM did not complete: ' + workDir)
+                msg = 'DEM did not complete: ' + str(workDir)
+
+                if testMode:
+
+                    if logger:
+                        logger.warn(msg)
+
+                else:
+                    raise RuntimeError(msg)
 
             else:
 
+                if createCOG:
+                    DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
+
                 if logger:
                     logger.info('DEM completed in: ' + workDir)
-
-        cogs = DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
 
     # -------------------------------------------------------------------------
     # reconcilePairing
@@ -422,6 +403,70 @@ class DemCreator(object):
                 self._logger.info(pair)
 
     # -------------------------------------------------------------------------
+    # runCatIds
+    # -------------------------------------------------------------------------
+    def runCatIds(self, catIds):
+
+        fpq = self._getBaseQuery()
+        fpq.addCatalogID(catIds)
+        fpScenes = fpq.getScenes()
+        pairs = self._getPairs(fpScenes)
+        self.processPairs(pairs)
+
+    # -------------------------------------------------------------------------
+    # runDgStereo
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def _runDgStereo(pairName, scenes, outDir, logger, testMode):
+
+        DG_STEREO_DIR = '/opt/DgStereo'
+        PAIR_NAME = pairName
+        TEST = 'true'  # Keeps intermediate files
+        ADAPT = 'true'
+        MAP = 'false'
+        RUN_PSTEREO = 'true'
+        BATCH_NAME = '"' + pairName + '"'
+        SGM = 'false'
+        SUB_PIX_KNL = '15'
+        ERODE_MAX = '24'
+        COR_KNL_SIZE = '21'
+        COR_TIME = '300'
+        OUT_DIR = outDir
+        QUERY = 'false'
+        USE_NODE_LIST = 'false'
+        NODES = os.path.join(DG_STEREO_DIR, 'nodeList.txt')
+        # CROP_WINDOW = '"2000 2000 5000 5000"'  # xoff yoff xsize ysize
+        CROP_WINDOW = '"0 15000 5000 5000"'  # xoff yoff xsize ysize
+
+        DEM_APPLICATION = os.path.join(DG_STEREO_DIR,
+                                       'evhr',
+                                       'dg_stereo.sh')
+
+        # Create the DEM.
+        cmd = DEM_APPLICATION + \
+            ' ' + PAIR_NAME + \
+            ' ' + TEST + \
+            ' ' + ADAPT + \
+            ' ' + MAP + \
+            ' ' + RUN_PSTEREO + \
+            ' ' + BATCH_NAME + \
+            ' _placeholder_for_rpcdem_' + \
+            ' ' + USE_NODE_LIST + \
+            ' ' + NODES + \
+            ' ' + SGM + \
+            ' ' + SUB_PIX_KNL + \
+            ' ' + ERODE_MAX + \
+            ' ' + COR_KNL_SIZE + \
+            ' ' + COR_TIME + \
+            ' ' + OUT_DIR + \
+            ' ' + QUERY
+
+        if testMode:
+            cmd += ' ' + CROP_WINDOW
+
+        SystemCommand(cmd, logger, True)
+
+    # -------------------------------------------------------------------------
     # runEnv
     # -------------------------------------------------------------------------
     def runEnv(self, envelope):
@@ -449,10 +494,12 @@ class DemCreator(object):
         fpq.addAoI(envelope)
         fpq.setPairsOnly()
         fpScenes = fpq.getScenes()
+
+        if self._testMode:
+            print('Scenes: ' + str(fpScenes))
+
         pairs = self._getPairs(fpScenes)
         self.processPairs(pairs)
-
-        self.processPairs(savedPairs)
 
     # -------------------------------------------------------------------------
     # runScenes

@@ -16,13 +16,15 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, unusedLogger=None):
+    def __init__(self, outDir, unusedLogger=None, testMode=False,
+                 createCOG=False):
 
         if logger:
             logger.info('In DemCreatorCelery.__init__')
 
         # Initialize the base class.
-        super(DemCreatorCelery, self).__init__(outDir, unusedLogger)
+        super(DemCreatorCelery, self).__init__(outDir, unusedLogger, testMode,
+                                               createCOG)
 
     # -------------------------------------------------------------------------
     # processPairs
@@ -38,11 +40,13 @@ class DemCreatorCelery(DemCreator):
                         key,
                         pairs[key],
                         self._outDir,
+                        self._testMode,
+                        self._createCOG,
                         logger) for key in pairs)
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
-
+            
         return result
 
     # -------------------------------------------------------------------------
@@ -50,9 +54,11 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     @staticmethod
     @app.task(serializer='pickle')
-    def _processPair(pairName, dgScenes, outDir, unusedLogger):
+    def _processPair(pairName, dgScenes, outDir, testMode, createCOG,
+                     unusedLogger):
 
         if logger:
             logger.info('In DemCreatorCelery._processPair')
 
-        DemCreator._processPair(pairName, dgScenes, outDir, logger)
+        DemCreator._processPair(pairName, dgScenes, outDir, testMode,
+                                createCOG, logger)
