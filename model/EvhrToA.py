@@ -138,7 +138,7 @@ class EvhrToA(object):
         SystemCommand(cmd, logger, True)
 
         xml = minidom.parse(tempClipFile)
-        features = xml.getElementsByTagName('gml:featureMember')
+        features = xml.getElementsByTagName('ogr:featureMember')
 
         return features
 

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import argparse
-import glob
+# import glob
 import logging
 import os
 import sys
@@ -34,23 +34,8 @@ def main():
     ch.setLevel(logging.INFO)
     logger.addHandler(ch)
 
-    # Find the pair directories.
-    pairDirs = glob.glob(os.path.join(args.i, 'WV0*'))
-
-    # Check each pair directory.
-    complete = []
-    incomplete = []
-
-    for pairDir in pairDirs:
-
-        isComplete = DemCreator.demComplete(pairDir, logger)
-
-        if isComplete:
-            complete.append(pairDir)
-
-        else:
-            incomplete.append(pairDir)
-
+    complete, incomplete = DemCreator.checkDemsInDirectory(args.i)
+    
     # Print results.
     print('\n', len(complete), 'complete DEMs:', complete,
           '\n\n', len(incomplete), 'incomplete DEMs:', incomplete)

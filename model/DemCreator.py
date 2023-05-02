@@ -1,4 +1,5 @@
 
+import glob
 import os
 
 from osgeo.osr import SpatialReference
@@ -123,6 +124,31 @@ class DemCreator(object):
         return True
 
     # -------------------------------------------------------------------------
+    # checkDemsInDirectory
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def checkDemsInDirectory(checkDir, logger=None):
+
+        # Find the pair directories.
+        pairDirs = glob.glob(os.path.join(checkDir, 'WV0*'))
+
+        # Check each pair directory.
+        complete = []
+        incomplete = []
+
+        for pairDir in pairDirs:
+
+            isComplete = DemCreator.demComplete(pairDir, logger)
+
+            if isComplete:
+                complete.append(pairDir)
+
+            else:
+                incomplete.append(pairDir)
+
+        return complete, incomplete
+        
+    # -------------------------------------------------------------------------
     # findMissing
     #
     # run{env|scenes} -> getPairs -> findMates -> findMissing
@@ -177,48 +203,48 @@ class DemCreator(object):
                 fpq.addCatalogID(missing)
                 fpScenes = fpq.getScenes()
 
-            # ---
-            # These results can contain references to strip scenes that
-            # weren't in the user's set of requested scenes.  Only keep ones
-            # that are counterparts of input scenes.
-            # ---
-            keepers = []
+                # ---
+                # These results can contain references to strip scenes that
+                # weren't in the user's set of requested scenes.  Only keep
+                # ones that are counterparts of input scenes.
+                # ---
+                keepers = []
 
-            for pairScene in pairs[pairName]:
+                for pairScene in pairs[pairName]:
 
-                for fpScene in fpScenes:
+                    for fpScene in fpScenes:
 
-                    try:
+                        try:
 
-                        if DgFile(fpScene.fileName()). \
-                                  isMate(pairName, DgFile(pairScene)):
+                            if DgFile(fpScene.fileName()). \
+                                      isMate(pairName, DgFile(pairScene)):
 
-                            keepers.append(fpScene.fileName())
-                            break
+                                keepers.append(fpScene.fileName())
+                                break
 
-                    except FileNotFoundError:
+                        except FileNotFoundError:
 
-                        # ---
-                        # Some FP images are missing their XML files.  Skip
-                        # these and keep going.
-                        # ---
-                        pass
+                            # ---
+                            # Some FP images are missing their XML files.
+                            # Skip these and keep going.
+                            # ---
+                            pass
 
-                    except ValueError:
+                        except ValueError:
 
-                        # ---
-                        # Some FP images have incorrect stereo information.
-                        # Skip these and keep going.
-                        # ---
-                        pass
+                            # ---
+                            # Some FP images have incorrect stereo information.
+                            # Skip these and keep going.
+                            # ---
+                            pass
 
-            pairs[pairName] = list(set(pairs[pairName] + keepers))
+                pairs[pairName] = list(set(pairs[pairName] + keepers))
 
-            # Are any missing after searching?
-            missing = self._findMissing(pairName, pairs[pairName])
+                # Are any missing after searching?
+                missing = self._findMissing(pairName, pairs[pairName])
 
-            if len(missing) > 0:
-                pairsWithMissingScenes.append(pairName)
+                if len(missing) > 0:
+                    pairsWithMissingScenes.append(pairName)
 
         return pairs, pairsWithMissingScenes
 

@@ -73,8 +73,8 @@ def main():
 
     group.add_argument('--scenes_in_file',
                        type=pathlib.Path,
-                       help='Fully-qualified path to CSV file containing a '
-                            'list of scene files')
+                       help='Fully-qualified path to file containing a '
+                            'list of scene files separated by new-lines')
 
     args = parser.parse_args()
 
