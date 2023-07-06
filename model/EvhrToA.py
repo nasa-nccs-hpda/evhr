@@ -683,20 +683,22 @@ class EvhrToA(object):
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
                       demDir, toaDir, outSrsProj4, panResolution, panSharpen,
                       logger):
-
+        toaNames = []
         for key in iter(stripsWithScenes):
 
-            EvhrToA._runOneStrip(key,
-                                 stripsWithScenes[key],
-                                 bandDir,
-                                 stripDir,
-                                 orthoDir,
-                                 demDir,
-                                 toaDir,
-                                 outSrsProj4,
-                                 panResolution,
-                                 panSharpen,
-                                 logger)
+            toaName = EvhrToA._runOneStrip(key,
+                                           stripsWithScenes[key],
+                                           bandDir,
+                                           stripDir,
+                                           orthoDir,
+                                           demDir,
+                                           toaDir,
+                                           outSrsProj4,
+                                           panResolution,
+                                           panSharpen,
+                                           logger)
+            toaNames.append(toaName)
+        return toaNames
 
     # -------------------------------------------------------------------------
     # _queryScenes
@@ -813,16 +815,17 @@ class EvhrToA(object):
         # ---
         # Process the strips.
         # ---
-        self.processStrips(stripsWithDgScenes,
-                           self._bandDir,
-                           self._stripDir,
-                           self._orthoDir,
-                           self._demDir,
-                           self._toaDir,
-                           self._outSrsProj4,
-                           self._panResolution,
-                           self._panSharpen,
-                           self._logger)
+        toaNames = self.processStrips(stripsWithDgScenes,
+                                      self._bandDir,
+                                      self._stripDir,
+                                      self._orthoDir,
+                                      self._demDir,
+                                      self._toaDir,
+                                      self._outSrsProj4,
+                                      self._panResolution,
+                                      self._panSharpen,
+                                      self._logger)
+        return toaNames
 
     # -------------------------------------------------------------------------
     # runOneStrip
@@ -897,7 +900,7 @@ class EvhrToA(object):
 
         if not panDgMates:
 
-            logger.WARN('There are not panchromatic scenes for catalog ID ' +
+            logger.warn('There are not panchromatic scenes for catalog ID ' +
                         str(catalogID))
 
             return
