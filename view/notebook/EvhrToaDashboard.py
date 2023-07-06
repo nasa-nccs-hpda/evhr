@@ -70,7 +70,7 @@ class EvhrToaDashboard(object):
     def __init__(self) -> None:
 
         self._title = widgets.HTML(
-            value="<h1><b>EVHR File Chooser and Visualizer</b><h1>")
+            value="<h1><b>EVHR TOA Dashboard</b><h1>")
 
         self._input_file_chooser = FileChooser(
             title='<b>EVHR Input</b>',
@@ -154,7 +154,7 @@ class EvhrToaDashboard(object):
         the run process
 
         Args:
-            button (widgets.Button): Button which is tied to the on-click 
+            button (widgets.Button): Button which is tied to the on-click
             function
         """
 
@@ -253,9 +253,9 @@ class EvhrToaDashboard(object):
     # -------------------------------------------------------------------------
     # _get_tag
     # -------------------------------------------------------------------------
-    def _get_tag(self, 
+    def _get_tag(self,
                  tag_str: str,
-                 xml_tree: ET, 
+                 xml_tree: ET,
                  xml_file_name: str):
         """Searches for a tag in an xml tree
 
