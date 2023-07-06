@@ -56,7 +56,7 @@ BLUE_BAND_ID: int = 1
 
 EVHR_NODATA_VAL: int = -10_001
 
-EVHR_EXPECTED_TIME_COEFF: float = 0.00000895
+EVHR_EXPECTED_TIME_COEFF: float = 0.00000707
 
 
 # -------------------------------------------------------------------------
