@@ -24,7 +24,7 @@ from evhr.model.EvhrToaCelery import EvhrToaCelery
 #
 # -----
 # evhr/view/evhrToaCLV.py -o /adapt/nobackup/people/rlgill/SystemTesting/testEVHR/ --scenes_in_file /adapt/nobackup/people/rlgill/SystemTesting/scene-list-file.csv
-# 
+#
 # -----
 # The time it takes to complete the scenes below:
 #
