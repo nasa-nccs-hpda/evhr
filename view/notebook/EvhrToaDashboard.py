@@ -1,9 +1,11 @@
 import concurrent.futures
 import functools
 import glob
+import logging
 import os
 import pathlib
 import subprocess
+import sys
 import time
 from typing import Tuple
 import xml.etree.ElementTree as ET
@@ -58,6 +60,8 @@ EVHR_NODATA_VAL: int = -10_001
 
 EVHR_EXPECTED_TIME_COEFF: float = 0.00000707
 
+EVHR_TITLE: str = '<h1><b>Enhanced Very-High-Resolution TOA Dashboard</b><h1>'
+
 
 # -------------------------------------------------------------------------
 # EvhrToaDashboard
@@ -69,8 +73,10 @@ class EvhrToaDashboard(object):
     # -------------------------------------------------------------------------
     def __init__(self) -> None:
 
+        self._logger = self.setup_logging()
+
         self._title = widgets.HTML(
-            value="<h1><b>EVHR TOA Dashboard</b><h1>")
+            value=EVHR_TITLE)
 
         self._input_file_chooser = FileChooser(
             title='<b>EVHR Input</b>',
@@ -164,6 +170,7 @@ class EvhrToaDashboard(object):
 
             post_msg_str = 'does not exist. Choose a proper file.</b>'
 
+            self._logger.warn(post_msg_str)
             self._warning.value = f'<B> {input_file_path} {post_msg_str}'
 
         cla_dict = {
@@ -173,11 +180,13 @@ class EvhrToaDashboard(object):
             'output_dir': pathlib.Path(self._output_dir_chooser.value),
         }
 
+        self._logger.debug(cla_dict)
+
         self._submit_button.description = 'Submitting'
 
         evhr_toa_file = self._evhr_launch_process(cla_dict)
 
-        self._submit_button.description = 'Done'
+        self._submit_button.description = 'Rendering Map'
 
         self._render_update_map_display(evhr_toa_image_path=evhr_toa_file)
 
@@ -204,10 +213,10 @@ class EvhrToaDashboard(object):
 
         @EvhrToaDashboard.progress_bar(float_progress=pbar,
                                        expected_time=expected_time)
-        def launch_subprocess(command: str):
-            self._launch_subprocess(command)
+        def launch_subprocess(command: str, logger: logging.Logger):
+            self._launch_subprocess(command, logger)
 
-        launch_subprocess(evhr_toa_command_str)
+        launch_subprocess(evhr_toa_command_str, self._logger)
 
         evhr_toa_file = self._find_output_file(cla_dict['output_dir'])
 
@@ -231,14 +240,26 @@ class EvhrToaDashboard(object):
         extension = os.path.splitext(file_name)[1]
 
         if extension != '.ntf' and extension != '.tif':
-            raise RuntimeError('{} is not a NITF or TIFF'.format(file_name))
+
+            error_msg = '{} is not a NITF or TIFF'.format(file_name)
+
+            self._warning.value = error_msg
+
+            self._logger.error(error_msg)
+
+            raise RuntimeError(error_msg)
 
         # Ensure the XML file exists.
         xml_file_name = file_name.replace(extension, '.xml')
 
         if not os.path.exists(xml_file_name):
+
             error_msg = '{} does not exist'.format(xml_file_name)
+
             self._warning.value = f"<b>{error_msg}</b>"
+
+            self._logger.error(error_msg)
+
             raise FileNotFoundError()
 
         # Some data members require the XML file counterpart to the TIF.
@@ -276,7 +297,11 @@ class EvhrToaDashboard(object):
         if xml_tag is None:
             error_msg = \
                 f'Unable to locate the "{tag_str}" tag in ' + xml_file_name
+
+            self._logger.error(error_msg)
+
             self._warning.value = f"<b>{error_msg}</b>"
+
             raise RuntimeError()
 
         return xml_tag
@@ -320,6 +345,8 @@ class EvhrToaDashboard(object):
 
         cmd = f"({cmd})"
 
+        self._logger.debug(cmd)
+
         return cmd
 
     # -------------------------------------------------------------------------
@@ -342,6 +369,8 @@ class EvhrToaDashboard(object):
 
         evhr_container = pathlib.Path(glob_attempt[0])
 
+        self._logger.debug(evhr_container)
+
         return evhr_container
 
     # -------------------------------------------------------------------------
@@ -363,14 +392,23 @@ class EvhrToaDashboard(object):
 
             error_msg = f'Could not find container at {evhr_regex}'
             self._warning.value = f"<b>{error_msg}</b>"
+            self._logger.error(error_msg)
             raise FileNotFoundError(error_msg)
 
     # -------------------------------------------------------------------------
     # getCatalogId()
     # -------------------------------------------------------------------------
     def _get_catalog_id(self) -> str:
+        """Given the IMD XML tree, get the catalog ID of the input image
 
-        return self._imd_tag.findall(CATELOG_ID_TAG)[0].text
+        Returns:
+            str: catalog ID
+        """
+        catalog_id = self._imd_tag.findall(CATELOG_ID_TAG)[0].text
+
+        self._logger.debug(catalog_id)
+
+        return catalog_id
 
     # -------------------------------------------------------------------------
     # _setup_progress_bar()
@@ -411,6 +449,8 @@ class EvhrToaDashboard(object):
 
         image_size = int(image_width) * int(image_height)
 
+        self._logger.debug(f'Image size: {image_size}')
+
         return image_size
 
     # -------------------------------------------------------------------------
@@ -428,6 +468,8 @@ class EvhrToaDashboard(object):
         """
 
         expected_time = img_size * EVHR_EXPECTED_TIME_COEFF
+
+        self._logger.info(f'Expected time: {expected_time}')
 
         return expected_time
 
@@ -449,11 +491,12 @@ class EvhrToaDashboard(object):
     # _launch_subprocess
     # -------------------------------------------------------------------------
     @staticmethod
-    def _launch_subprocess(command: str) -> Tuple[str, str]:
+    def _launch_subprocess(command: str,
+                           logger: logging.Logger) -> Tuple[str, str]:
         """Launch a subprocess through subprocess module.
 
-        Args:
-            command (str): command string to launch
+        Args:            command (str): command string to launch
+
 
         Raises:
             RuntimeError: Executing of subprocess failed
@@ -473,11 +516,17 @@ class EvhrToaDashboard(object):
 
             output, error = process.communicate()
 
+            logger.info(output)
+
+            logger.debug(error)
+
             return output, error
 
         except subprocess.CalledProcessError as e:
 
             error_msg = f"Subprocess failed. Command: {command}. Error: {e}"
+
+            logger.error(error_msg)
 
             raise RuntimeError(error_msg)
 
@@ -485,6 +534,8 @@ class EvhrToaDashboard(object):
 
             error_msg = "An error occurred while launching the " + \
                 f"subprocess. Command: {command}. Error: {e}"
+
+            logger.error(error_msg)
 
             raise RuntimeError(error_msg)
 
@@ -506,12 +557,18 @@ class EvhrToaDashboard(object):
 
         regex = f'5-toas/*{cat_id}*-toa.tif'
 
+        self._logger.debug(f'Regex: {regex}')
+
         files_matching_regex = list(output_dir.glob(regex))
+
+        self._logger.debug(files_matching_regex)
 
         self._check_number_of_files_matching_regex(
             files_matching_regex, cat_id)
 
         file_matching_regex_to_return = pathlib.Path(files_matching_regex[0])
+
+        self._logger.debug(f'File: {file_matching_regex_to_return}')
 
         return file_matching_regex_to_return
 
@@ -535,12 +592,16 @@ class EvhrToaDashboard(object):
             warning_msg = f'Found {number_of_files} TOAs' + \
                 f' matching catelog ID {cat_id}'
 
+            self._logger.warn(warning_msg)
+
             self._warning.value = warning_msg
 
         if number_of_files < ACCEPTABLE_FILE_COUNT:
 
             error_msg = '<b>ERROR: Could not find any TOAs' + \
                 f' matching catelog ID {cat_id}</b>'
+
+            self._logger.error(error_msg)
 
             self._warning.value = error_msg
 
@@ -714,3 +775,24 @@ class EvhrToaDashboard(object):
             return _func
 
         return _progress_bar
+
+    # -------------------------------------------------------------------------
+    # setup_logging
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def setup_logging() -> logging.Logger:
+        """Sets up a logger for EvhrToaDashboard
+
+        Returns:
+            logging.Logger: formatted logger
+        """
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            "%(asctime)s; %(levelname)s; %(message)s", "%Y-%m-%d %H:%M:%S"
+        )
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+        return logger
