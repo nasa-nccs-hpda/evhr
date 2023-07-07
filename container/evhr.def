@@ -1,0 +1,19 @@
+Bootstrap: localimage
+FROM: ./core-dev.sif
+
+%help
+===========================================================================
+        - EVHR (extends -> core) – ILAB dependencies:
+===========================================================================
+
+%post
+        cd /opt
+        wget https://github.com/NeoGeographyToolkit/StereoPipeline/releases/download/2.7.0/StereoPipeline-2.7.0-2020-07-29-x86_64-Linux.tar.bz2
+        tar -xf StereoPipeline-2.7.0-2020-07-29-x86_64-Linux.tar.bz2
+        rm StereoPipeline-2.7.0-2020-07-29-x86_64-Linux.tar.bz2
+        mv StereoPipeline-2.7.0-2020-07-29-x86_64-Linux StereoPipeline
+
+        #install evhr tagged code, uncomment for delivered code
+        mkdir -p /usr/local/evhr
+        git clone --single-branch --branch evhr-dev-1.0.0 https://github.com/nasa-nccs-hpda/evhr.git /usr/local/evhr
+        chmod a+rwx -R /usr/local/evhr
