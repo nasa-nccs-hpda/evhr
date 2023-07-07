@@ -105,7 +105,7 @@ class EvhrDashboardTestCase(unittest.TestCase):
         img_size = 10_000 * 10_000
 
         # Define the expected time coefficient
-        expected_time_coeff = 0.00000895
+        expected_time_coeff = 0.00000707
 
         # Set the EVHR_EXPECTED_TIME_COEFF to the expected time coefficient
         dashboard.EVHR_EXPECTED_TIME_COEFF = expected_time_coeff

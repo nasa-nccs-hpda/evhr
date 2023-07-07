@@ -170,7 +170,7 @@ class EvhrToaDashboard(object):
 
             post_msg_str = 'does not exist. Choose a proper file.</b>'
 
-            self._logger.warn(post_msg_str)
+            self._logger.warning(post_msg_str)
             self._warning.value = f'<B> {input_file_path} {post_msg_str}'
 
         cla_dict = {
@@ -592,7 +592,7 @@ class EvhrToaDashboard(object):
             warning_msg = f'Found {number_of_files} TOAs' + \
                 f' matching catelog ID {cat_id}'
 
-            self._logger.warn(warning_msg)
+            self._logger.warning(warning_msg)
 
             self._warning.value = warning_msg
 
