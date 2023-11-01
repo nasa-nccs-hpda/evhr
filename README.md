@@ -2,7 +2,7 @@
 
 [![DOI](https://zenodo.org/badge/325633657.svg)](https://zenodo.org/doi/10.5281/zenodo.10062470)
 
-Python library to produce on-demand user defined science ready products not limited to surface reflectance 1/2° ortho mosaics and VHR digital elevation models (DEMs).
+Python library to produce on-demand user-defined science-ready (geo-referenced, ortho-rectified, top-of-atmosphere reflectance (TOA)) GeoTiffs and digital elevation models (DEMs) from spaceborne VHR images from the MAXAR archive.
 
 ## Background
 
@@ -10,7 +10,7 @@ Commercial very high-resolution (VHR) Earth observing (EO) satellites have grown
 repeat coverage that can support existing NASA EO missions with stereo and multispectral capabilities. Sub-meter
 data from these instruments exceeds petabytes per year and the cost for data, storage systems and compute power
 have all dropped exponentially. Concurrently, through agreements with the National Geospatial-Intelligence Agency,
-NASA-Goddard Space Flight Center is acquiring VHR EO imagery from DigitalGlobe's WorldView-1, 2, 3 Quickbird-2,
+NASA-Goddard Space Flight Center is acquiring VHR EO imagery from MAXAR's WorldView-1, 2, 3 Quickbird-2,
 GeoEye-1 and IKONOS-2 satellites. 
 
 To enhance the utility of these data we are developing an Application Program Interface (API) to produce on-demand
