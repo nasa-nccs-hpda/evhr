@@ -314,7 +314,11 @@ class DemCreator(object):
         # Create the working directory, if necessary.
         workDir = os.path.join(outDir, pairName)
 
+        if logger:
+            logger.debug(f'Workdir: {workDir}')
+
         if not os.path.exists(workDir):
+            logger.debug(f'mkdir {workDir}')
             os.mkdir(workDir)
 
         # If the DEM exists, do not proceed.
@@ -325,8 +329,10 @@ class DemCreator(object):
 
                 ext = os.path.splitext(scene)[1]  # could be .tif or .ntf
                 dst = os.path.join(workDir, os.path.basename(scene))
+                logger.debug(f'Dst: {dst}')
 
                 if not os.path.exists(dst):
+                    logger.debug(f'Symlinking {scene} to {dst}')
                     os.symlink(scene, dst)
 
                 dstXml = dst.replace(ext, '.xml')
@@ -463,6 +469,8 @@ class DemCreator(object):
 
         if testMode:
             cmd += ' ' + CROP_WINDOW
+        
+        print(cmd)
 
         SystemCommand(cmd, logger, True)
 
@@ -504,23 +512,10 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # runScenes
     # -------------------------------------------------------------------------
-    def runScenes(self, scenes):
+    def runScenes(self, pairs):
 
         if self._logger:
             self._logger.info('In runScenes')
+            self._logger.debug(f'Pairs: {pairs}')
 
-        # Convert Posix paths to strings.
-        scenes = [str(s) for s in scenes]
-
-        # Do not accept multispectral scenes.
-        for scene in scenes:
-            if DgFile(scene).isMultispectral():
-                raise RuntimeError('Scenes must be panchromatic.')
-
-        # Get FootprintsScene objects because they have pair information.
-        fpq = self._getBaseQuery()
-        fpq.addScenesFromNtf(scenes)
-        fpScenes = fpq.getScenes()
-
-        pairs = self._getPairs(fpScenes)
         self.processPairs(pairs)

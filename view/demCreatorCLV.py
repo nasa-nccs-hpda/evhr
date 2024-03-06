@@ -1,15 +1,12 @@
 #!/usr/bin/python
 
+import csv
 import argparse
 import logging
 import os
 import pathlib
 import sys
 
-from osgeo import osr
-from osgeo.osr import SpatialReference
-
-from core.model.Envelope import Envelope
 from core.model.ILProcessController import ILProcessController
 from evhr.model.DemCreator import DemCreator
 from evhr.model.DemCreatorCelery import DemCreatorCelery
@@ -30,6 +27,18 @@ def main():
     # Process command-line args.
     desc = 'Use this application to produce EVHR DEMs.'
     parser = argparse.ArgumentParser(description=desc)
+
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument('--pairs',
+                       type=pathlib.Path,
+                       nargs='*',
+                       help='Fully-qualified path to scene files')
+
+    group.add_argument('--pairs_in_file',
+                       type=pathlib.Path,
+                       help='Fully-qualified path to CSV file containing a '
+                            'list of scene files')
 
     parser.add_argument('--celery',
                         action='store_true',
@@ -52,22 +61,6 @@ def main():
                         action='store_true',
                         help='Run in test mode for speed.')
 
-    group = parser.add_mutually_exclusive_group(required=True)
-
-    group.add_argument('--catIds',
-                       type=str,
-                       nargs='*',
-                       help='Catalog IDs')
-
-    group.add_argument('-e',
-                       nargs=5,
-                       help='ulx uly lrx lry epsg-code')
-
-    group.add_argument('--scenes',
-                       type=pathlib.Path,
-                       nargs='*',
-                       help='Fully-qualified path to scene files')
-
     args = parser.parse_args()
 
     # ---
@@ -79,31 +72,23 @@ def main():
         logging.basicConfig(filename=logFile)
 
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG)
     logger.addHandler(ch)
 
     # ---
-    # Envelope
+    # Scene pair list file
     # ---
-    env = None
+    pairs = {}
 
-    if args.e:
+    if args.pairs_in_file:
 
-        epsgCode = int(args.e[4])
-        srs = SpatialReference()
-        srs.ImportFromEPSG(epsgCode)
-
-        srs4326 = SpatialReference()
-        srs4326.ImportFromEPSG(4326)
-
-        if srs.IsSame(srs4326):
-            srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-
-        env = Envelope()
-        env.addPoint(float(args.e[0]), float(args.e[1]), 0, srs)
-        env.addPoint(float(args.e[2]), float(args.e[3]), 0, srs)
+        with open(args.pairs_in_file, newline='') as csvFile:
+            reader = csv.reader(csvFile)
+            for row in reader:
+                key = row[0]
+                pairs[key] = row[1:]
 
     # ---
     # Instantiate the process object and run.
@@ -115,33 +100,13 @@ def main():
 
             dc = DemCreatorCelery(args.o, logger, args.t, args.cog)
 
-            if env:
-                dc.runEnv(env)
-
-            elif args.scenes:
-                dc.runScenes(args.scenes)
-
-            elif args.catIds:
-                dc.runCatIds(args.catIds)
-
-            else:
-                raise RuntimeError('Scenes or an envelope must be provided.')
+            dc.runScenes(pairs)
 
     else:
 
         dc = DemCreator(args.o, logger, args.t, args.cog)
 
-        if env:
-            dc.runEnv(env)
-
-        elif args.scenes:
-            dc.runScenes(args.scenes)
-
-        elif args.catIds:
-            dc.runCatIds(args.catIds)
-
-        else:
-            raise RuntimeError('Scenes or an envelope must be provided.')
+        dc.runScenes(pairs)
 
 
 # -----------------------------------------------------------------------------
