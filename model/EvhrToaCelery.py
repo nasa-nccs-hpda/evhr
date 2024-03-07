@@ -92,7 +92,7 @@ class EvhrToaCelery(EvhrToA):
 
         if panSharpen and scenes[0].isMultispectral():
 
-            EvhrToA._runPanSharpening(toaName, scenes[0].getCatalogId(),
-                                      stripID, bandDir, stripDir, orthoDir,
+            EvhrToA._runPanSharpening(toaName, stripID, scenes, bandDir,
+                                      stripDir, orthoDir,
                                       demDir, toaDir, outSrsProj4,
                                       panResolution, logger)
