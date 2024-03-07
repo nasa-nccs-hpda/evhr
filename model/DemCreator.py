@@ -250,8 +250,6 @@ class DemCreator(object):
         if testMode:
             cmd += ' ' + CROP_WINDOW
 
-        print(cmd)
-
         SystemCommand(cmd, logger, True)
 
     # -------------------------------------------------------------------------
