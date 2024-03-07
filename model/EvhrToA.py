@@ -1,6 +1,7 @@
 
 import filecmp
 import glob
+import logging
 import os
 import shutil
 import tempfile
@@ -15,7 +16,6 @@ from osgeo.osr import SpatialReference
 from core.model.BaseFile import BaseFile
 from core.model.DgFile import DgFile
 from core.model.Envelope import Envelope
-from core.model.FootprintsQuery import FootprintsQuery
 from core.model.GeospatialImageFile import GeospatialImageFile
 from core.model.SystemCommand import SystemCommand
 
@@ -152,7 +152,7 @@ class EvhrToA(object):
     #
     # {strip1: [image, image, ...], strip2: [image, image, ...], ...}
     # -------------------------------------------------------------------------
-    def _collectImagesByStrip(self, dgScenes):
+    def _collectImagesByStrip(self, dgScenes: list) -> dict:
 
         if self._logger:
 
@@ -190,7 +190,7 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     # _computeEnvelope
     # -------------------------------------------------------------------------
-    def _computeEnvelope(self, sceneList):
+    def _computeEnvelope(self, sceneList: list) -> Envelope:
 
         if self._logger:
             self._logger.info('In _computeEnvelope')
@@ -282,7 +282,7 @@ class EvhrToA(object):
     #
     # This method returns the UTM SRS definition in PROJ4 format.
     # -------------------------------------------------------------------------
-    def _getUtmSrs(self, envelope):
+    def _getUtmSrs(self, envelope: Envelope) -> str:
 
         # If it is already in UTM, just return the PROJ4 string.
         srs = envelope.GetSpatialReference()
@@ -362,63 +362,6 @@ class EvhrToA(object):
         driver.DeleteDataSource(clipFile)
 
         return proj4
-
-    # -------------------------------------------------------------------------
-    # _initInputScenes
-    # -------------------------------------------------------------------------
-    def _initInputScenes(self, envelope=None, dgScenes=None):
-
-        # ---
-        # We need both an envelope and a scene list.  If there is no envelope,
-        # expect a scene list and compute its envelope.  If there is no scene
-        # list, expect an envelope and query for scenes within it.
-        # ---
-        if not envelope and not dgScenes:
-
-            raise RuntimeError('Either an envelope or a scene list ' +
-                               'must be provided.')
-
-        # ---
-        # Having an envelope and scene list is confusing.
-        # ---
-        if envelope and dgScenes:
-
-            raise RuntimeError('Either an envelope or a scene list ' +
-                               'must be provided, but not both.')
-
-        # ---
-        # When no scene list is given, query only multispectral scenes.
-        # ---
-        if envelope:
-
-            fpScenes = self._queryScenes(envelope,
-                                         includeMultispec=True,
-                                         includePan=False)
-
-            if self._logger:
-                self._logger.info(str(len(fpScenes)) + ' scenes found.')
-
-            dgScenes = set()
-
-            for s in fpScenes:
-
-                try:
-                    dgf = DgFile(s)
-                    dgScenes.add(dgf)
-
-                except FileNotFoundError as e:
-
-                    if self._logger:
-                        self._logger.warn(e)
-
-        if not dgScenes:
-            raise RuntimeError('No valid scenes found.')
-
-        dgScenes = self._removeDuplicates(dgScenes)
-        envelope = envelope or self._computeEnvelope(list(dgScenes))
-        self._outSrsProj4 = self._getUtmSrs(envelope)
-
-        return dgScenes, envelope
 
     # -------------------------------------------------------------------------
     # mergeBands
@@ -680,8 +623,16 @@ class EvhrToA(object):
     # run -> processStrips
     # -> runOneStrip
     # -------------------------------------------------------------------------
-    def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
-                      demDir, toaDir, outSrsProj4, panResolution, panSharpen,
+    def processStrips(self,
+                      stripsWithScenes: dict,
+                      bandDir,
+                      stripDir,
+                      orthoDir,
+                      demDir,
+                      toaDir,
+                      outSrsProj4,
+                      panResolution,
+                      panSharpen,
                       logger):
 
         for key in iter(stripsWithScenes):
@@ -699,38 +650,9 @@ class EvhrToA(object):
                                  logger)
 
     # -------------------------------------------------------------------------
-    # _queryScenes
-    # -------------------------------------------------------------------------
-    def _queryScenes(self, envelope, includeMultispec=True, includePan=False):
-
-        if not includeMultispec and not includePan:
-
-            raise RuntimeError('Queries must request multispectral or ' +
-                               'panchromatic images.')
-
-        fpq = FootprintsQuery(logger=self._logger)
-        fpq.addAoI(envelope)
-        fpq.setMinimumOverlapInDegrees()
-        fpq.setMaximumScenes(EvhrToA.MAXIMUM_SCENES)
-
-        if not includeMultispec:
-            fpq.setMultispectralOff()
-
-        if not includePan:
-            fpq.setPanchromaticOff()
-
-        fpScenes = fpq.getScenes()
-        sceneFiles = fpq.fpScenesToFileNames(fpScenes)
-
-        if not sceneFiles and self._logger:
-            self._logger.error('There were no level 1B scenes.')
-
-        return sceneFiles
-
-    # -------------------------------------------------------------------------
     # removeDuplicates
     # -------------------------------------------------------------------------
-    def _removeDuplicates(self, dgScenes):
+    def _removeDuplicates(self, dgScenes: list) -> list:
 
         if len(dgScenes) == 1:
             return dgScenes
@@ -796,19 +718,23 @@ class EvhrToA(object):
 
     # -------------------------------------------------------------------------
     # run
-    # -> queryScenes
     # -> collectImagesByStrip
     # -> computeEnvelope
     # -> getUtmSrs
     # -> processStrips
     # -------------------------------------------------------------------------
-    def run(self, envelope=None, inDgScenes=None, panSharpen=False):
+    def run(self, inDgScenes: list = None) -> None:
 
         if self._logger:
             self._logger.info('In run')
 
-        dgScenes, envelope = self._initInputScenes(envelope, inDgScenes)
-        stripsWithDgScenes = self._collectImagesByStrip(dgScenes)
+        if not inDgScenes:
+            raise RuntimeError('No valid scenes found.')
+
+        dgScenes: list = self._removeDuplicates(inDgScenes)
+        envelope: Envelope = self._computeEnvelope(list(dgScenes))
+        self._outSrsProj4 = self._getUtmSrs(envelope)
+        stripsWithDgScenes: dict = self._collectImagesByStrip(dgScenes)
 
         # ---
         # Process the strips.
@@ -866,8 +792,8 @@ class EvhrToA(object):
 
         if panSharpen and scenes[0].isMultispectral():
 
-            EvhrToA._runPanSharpening(toaName, scenes[0].getCatalogId(),
-                                      stripID, bandDir, stripDir, orthoDir,
+            EvhrToA._runPanSharpening(toaName, stripID, scenes, bandDir,
+                                      stripDir, orthoDir,
                                       demDir, toaDir, outSrsProj4,
                                       panResolution, logger)
 
@@ -877,28 +803,45 @@ class EvhrToA(object):
     # runPanSharpening
     # -------------------------------------------------------------------------
     @staticmethod
-    def _runPanSharpening(toaName, catalogID, stripID, bandDir, stripDir,
-                          orthoDir, demDir, toaDir, outSrsProj4, panResolution,
-                          logger):
+    def _runPanSharpening(toaName: str,
+                          stripID: str,
+                          scenes: list,
+                          bandDir: str,
+                          stripDir: str,
+                          orthoDir: str,
+                          demDir: str,
+                          toaDir: str,
+                          outSrsProj4: str,
+                          panResolution: float,
+                          logger: logging.RootLogger):
 
         if logger:
             logger.info('In _runPanSharpening')
 
         # ---
-        # Get the panchromatic mates of the ToA.
+        # Get the panchromatic mates of the ToA.  By definition, panchromatic
+        # mates should have the same name as their multispectral counterparts
+        # except the substring "M1BS" should be "P1BS".
         # ---
-        fpq = FootprintsQuery(logger=logger)
-        fpq.setMinimumOverlapInDegrees()
-        fpq.setMaximumScenes(EvhrToA.MAXIMUM_SCENES)
-        fpq.setMultispectralOff()
-        fpq.addCatalogID([catalogID])
-        fpScenes = fpq.getScenes()
-        panDgMates = [DgFile(s) for s in fpq.fpScenesToFileNames(fpScenes)]
+        panNames = [m.fileName().replace('-M1BS-', '-P1BS-') for m in scenes]
+        panDgMates = []
+
+        for panName in panNames:
+
+            if not os.path.exists(panName):
+
+                logger.warning('Panchromatic mate, ' +
+                            str(panName) +
+                            ', does not exist.  ' +
+                            'Pansharpening will not be applied.')
+
+            else:
+                panDgMates.append(DgFile(panName))
 
         if not panDgMates:
 
-            logger.WARN('There are not panchromatic scenes for catalog ID ' +
-                        str(catalogID))
+            logger.warning('There are not panchromatic scenes for catalog ID ' +
+                        str(stripID))
 
             return
 
