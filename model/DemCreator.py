@@ -45,6 +45,11 @@ class DemCreator(object):
             inFile = os.path.join(workDir, f)
             cogName = os.path.join(workDir, name + 'CoG.tif')
 
+            if os.path.exists(cogName):
+                cogs.append(cogName)
+                logger.info(f'{cogName} already exists.')
+                continue
+
             cmd = 'gdal_translate ' + \
                   inFile + \
                   ' ' + cogName + \
@@ -108,7 +113,7 @@ class DemCreator(object):
     # This decompsition of the run method is in anticipation of a Celery
     # version of DemCreator.
     #
-    # runScenes -> getPairs -> processPairs
+    # runPairs -> getPairs -> processPairs
     # -------------------------------------------------------------------------
     def processPairs(self, pairs):
 
@@ -135,13 +140,12 @@ class DemCreator(object):
         workDir = os.path.join(outDir, pairName)
 
         if logger:
-            logger.debug(f'Workdir: {workDir}')
+            logger.debug(f'Working directory: {workDir}')
 
         if not os.path.exists(workDir):
-            logger.debug(f'mkdir {workDir}')
             os.mkdir(workDir)
 
-        # If the DEM exists, do not proceed.
+        # If the DEM exists, do not proceed to make a new DEM.
         if not DemCreator.demComplete(workDir):
 
             # Copy the scenes to the working directory using sym links
@@ -149,10 +153,8 @@ class DemCreator(object):
 
                 ext = os.path.splitext(scene)[1]  # could be .tif or .ntf
                 dst = os.path.join(workDir, os.path.basename(scene))
-                logger.debug(f'Dst: {dst}')
 
                 if not os.path.exists(dst):
-                    logger.debug(f'Symlinking {scene} to {dst}')
                     os.symlink(scene, dst)
 
                 dstXml = dst.replace(ext, '.xml')
@@ -190,13 +192,12 @@ class DemCreator(object):
                 else:
                     raise RuntimeError(msg)
 
-            else:
+        # Regardless of previous existing DEM, continue with COG generation
+        if createCOG:
+            DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
 
-                if createCOG:
-                    DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
-
-                if logger:
-                    logger.info('DEM completed in: ' + workDir)
+        if logger:
+            logger.info('DEM completed in: ' + workDir)
 
     # -------------------------------------------------------------------------
     # runDgStereo
@@ -248,18 +249,18 @@ class DemCreator(object):
 
         if testMode:
             cmd += ' ' + CROP_WINDOW
-        
+
         print(cmd)
 
         SystemCommand(cmd, logger, True)
 
     # -------------------------------------------------------------------------
-    # runScenes
+    # runPairs
     # -------------------------------------------------------------------------
-    def runScenes(self, pairs):
+    def runPairs(self, pairs):
 
         if self._logger:
-            self._logger.info('In runScenes')
+            self._logger.info('In runPairs')
             self._logger.debug(f'Pairs: {pairs}')
 
         self.processPairs(pairs)
