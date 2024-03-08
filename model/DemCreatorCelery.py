@@ -29,7 +29,7 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     # processPairs
     #
-    # run{env|scenes} -> getPairs -> processPairs
+    # runPairs -> getPairs -> processPairs
     # -------------------------------------------------------------------------
     def processPairs(self, pairs):
 
