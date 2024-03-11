@@ -774,7 +774,9 @@ class EvhrToA(object):
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
 
         if thisToaIsForPanSharpening:
-            toaName = toaName.replace('-toa.tif', '-toaForPanSharp.tif')
+
+            # toaName = toaName.replace('-toa.tif', '-toaForPanSharp.tif')
+            toaName = toaName.replace('_M1BS_', '_P1BS_')
 
         if not os.path.exists(toaName):
 
@@ -912,6 +914,11 @@ class EvhrToA(object):
                   ' ' + psTempName
 
             SystemCommand(cmd, logger, True)
+
+            # Copy an XML for it.
+            toaXmlName = toaName.replace('.tif', '.xml')
+            psTempXmlName = psTempName.replace('.tif', '.xml')
+            shutil.copy(toaXmlName, psTempXmlName)
 
     # ------------------------------------------------------------------------
     # scenesToStripFromBandList
