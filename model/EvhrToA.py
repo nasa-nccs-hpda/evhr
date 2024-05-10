@@ -157,7 +157,7 @@ class EvhrToA(object):
         if self._logger:
 
             self._logger.info('In collectImagesByStrip')
-            self._logger.info('Coallating ' + str(len(dgScenes)) + ' scenes')
+            self._logger.info('Collating ' + str(len(dgScenes)) + ' scenes')
 
         stripsWithScenes = {}
 
@@ -257,7 +257,11 @@ class EvhrToA(object):
     # _runOneStrip -> _createStrip
     # -------------------------------------------------------------------------
     @staticmethod
-    def _createStrip(stripName, stripScenes, bandDir, stripDir, logger):
+    def _createStrip(stripName,
+                     stripScenes,
+                     bandDir,
+                     stripDir,
+                     logger) -> list:
 
         if logger:
 
@@ -540,7 +544,8 @@ class EvhrToA(object):
 
             except RuntimeError as e:
 
-                raise RuntimeError(str(e) + ' Band file: ' + str(bandFile))
+                raise RuntimeError(str(e) + ' Band file: ' + str(bandFile)) \
+                    from e
 
             # Orthorectify.
             orthoFileTemp = orthoFile.replace('.tif', '-temp.tif')
@@ -566,13 +571,17 @@ class EvhrToA(object):
                 SystemCommand(cmd, logger, True)
 
             except Exception as e:
+
                 msg = 'Encountered exception executing mapproject: ' + \
                     '{}'.format(e)
+
                 if logger:
                     logger.error(msg)
+
                 if os.path.exists(orthoFile):
                     os.remove(orthoFile)
-                raise RuntimeError(msg)
+
+                raise RuntimeError(msg) from e
 
             try:
                 # Convert NoData to settings value, set output type to Int16
@@ -584,13 +593,17 @@ class EvhrToA(object):
                 SystemCommand(cmd, logger, True)
 
             except Exception as e:
+
                 msg = 'Encountered exception executing image_calc: ' + \
                     '{}'.format(e)
+
                 if logger:
                     logger.error(msg)
+
                 if os.path.exists(orthoFile):
                     os.remove(orthoFile)
-                raise RuntimeError(msg)
+
+                raise RuntimeError(msg) from e
 
             if os.path.exists(orthoFileTemp):
                 os.remove(orthoFileTemp)
@@ -608,12 +621,16 @@ class EvhrToA(object):
                 orthoDg = DgFile(orthoFile)
 
             except Exception as e:
+                
                 msg = 'Encountered exception creating DgFile ' + \
                     'from {}: {}'.format(orthoFile, e)
+                
                 if logger:
                     logger.error(msg)
+                
                 os.remove(orthoFile)
-                raise RuntimeError(msg)
+                
+                raise RuntimeError(msg) from e
 
         return orthoDg
 
@@ -681,6 +698,7 @@ class EvhrToA(object):
         sortedScenes.sort(reverse=True)  # Put X1BS first, so M1BS is added.
         dgScenes = []
         numScenes = len(sortedScenes)
+        secondToLastMatched = False
 
         for i in range(numScenes-1):
 
@@ -704,9 +722,22 @@ class EvhrToA(object):
                 else:
                     if self._logger:
                         self._logger.info('XML match: ' + ntf1 + ' ' + ntf2)
+
+                    if i == numScenes - 2:
+                        secondToLastMatched = True
             else:
 
                 dgScenes.append(sortedScenes[i])
+
+        # ---
+        # The loop above compares the current scene to the one after, so the
+        # last scene in the list is never checked--or added to the filtered
+        # list.  If the last item checked, which is the second-to-last item,
+        # was a match, then the last item should not be added.  Otherwise,
+        # add it.
+        # ---
+        if not secondToLastMatched:
+            dgScenes.append(sortedScenes[-1])
 
         numAfter = len(dgScenes)
 
@@ -765,23 +796,28 @@ class EvhrToA(object):
         if logger:
             logger.info('In runOneStrip')
 
-        imageForEachBandInStrip = EvhrToA._createStrip(stripID,
-                                                       scenes,
-                                                       bandDir,
-                                                       stripDir,
-                                                       logger)
+        # imageForEachBandInStrip = EvhrToA._createStrip(stripID,
+        #                                                scenes,
+        #                                                bandDir,
+        #                                                stripDir,
+        #                                                logger)
 
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
 
         if thisToaIsForPanSharpening:
-
-            # toaName = toaName.replace('-toa.tif', '-toaForPanSharp.tif')
             toaName = toaName.replace('_M1BS_', '_P1BS_')
 
         if not os.path.exists(toaName):
 
+            imageForEachBandInStrip: list = EvhrToA._createStrip(stripID,
+                                                                 scenes,
+                                                                 bandDir,
+                                                                 stripDir,
+                                                                 logger)
+
             mapproject_threads = 4
 
+            # StripToToa detects an empty imageForEachBandInStrip, and stops.
             EvhrToA._stripToToa(imageForEachBandInStrip,
                                 toaName,
                                 orthoDir,
@@ -792,7 +828,9 @@ class EvhrToA(object):
                                 panResolution,
                                 logger)
 
-        if panSharpen and scenes[0].isMultispectral():
+        if panSharpen and \
+            scenes[0].isMultispectral() and \
+            os.path.exists(toaName):
 
             EvhrToA._runPanSharpening(toaName, stripID, scenes, bandDir,
                                       stripDir, orthoDir,
@@ -933,7 +971,7 @@ class EvhrToA(object):
     # ------------------------------------------------------------------------
     @staticmethod
     def _scenesToStripFromBandList(stripName, stripScenes, bands, bandDir,
-                                   stripDir, logger):
+                                   stripDir, logger) -> list:
 
         stripBandList = []  # Length of list = number of bands
 
