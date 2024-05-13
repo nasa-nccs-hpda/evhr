@@ -3,6 +3,7 @@ import filecmp
 import glob
 import logging
 import os
+import pathlib
 import shutil
 import tempfile
 from xml.dom import minidom
@@ -20,6 +21,7 @@ from core.model.GeospatialImageFile import GeospatialImageFile
 from core.model.SystemCommand import SystemCommand
 
 from evhr.model.ToaCalculation import ToaCalculation
+from evhr.model.InputDem import InputDem 
 
 
 # -----------------------------------------------------------------------------
@@ -49,7 +51,8 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, panResolution=1, panSharpen=False, logger=None):
+    def __init__(self, outDir, inputDemPath=None, panResolution=1,
+                 panSharpen=False, logger=None):
 
         self._logger = logger
 
@@ -87,6 +90,8 @@ class EvhrToA(object):
             self._logger.info('DEM directory: ' + self._demDir)
             self._logger.info('Ortho image directory: ' + self._orthoDir)
             self._logger.info('ToA directory: ' + self._toaDir)
+
+        self._inputDem = InputDem(inputDemPath, self._demDir, self._logger)
 
     # -------------------------------------------------------------------------
     # clipShp
@@ -210,7 +215,7 @@ class EvhrToA(object):
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     # -------------------------------------------------------------------------
     @staticmethod
-    def _createDemForOrthos(envelope, demDir, logger):
+    def _createDemForOrthos(inputDem, envelope, demDir, logger):
 
         if logger:
             logger.info('Creating DEM for orthorectification.')
@@ -248,7 +253,8 @@ class EvhrToA(object):
         xEnv = Envelope()
         xEnv.addPoint(xUlx, xUly, 0.0, tempEnv.GetSpatialReference())
         xEnv.addPoint(xLrx, xLry, 0.0, tempEnv.GetSpatialReference())
-        EvhrToA._mosaicAndClipDemTiles(demName, xEnv, demDir, logger)
+        # EvhrToA._mosaicAndClipDemTiles(demName, xEnv, demDir, logger)
+        inputDem.mosaicAndClipDemTiles(demName, xEnv)
 
         return demName
 
@@ -518,7 +524,7 @@ class EvhrToA(object):
     # run -> processStrips -> runOneStrip -> stripToToa -> orthoOne
     # --------------------------------------------------------------------------
     @staticmethod
-    def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, mapproject_threads,
+    def _orthoOne(bandFile, inputDem, orthoDir, demDir, outSrsProj4, mapproject_threads,
                   panResolution, logger):
 
         baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
@@ -534,7 +540,8 @@ class EvhrToA(object):
 
             try:
 
-                clippedDEM = EvhrToA._createDemForOrthos(bandFile.envelope(),
+                clippedDEM = EvhrToA._createDemForOrthos(inputDem,
+                                                         bandFile.envelope(),
                                                          demDir,
                                                          logger)
 
@@ -633,6 +640,7 @@ class EvhrToA(object):
                       outSrsProj4,
                       panResolution,
                       panSharpen,
+                      inputDem,
                       logger):
 
         for key in iter(stripsWithScenes):
@@ -647,6 +655,7 @@ class EvhrToA(object):
                                  outSrsProj4,
                                  panResolution,
                                  panSharpen,
+                                 inputDem,
                                  logger)
 
     # -------------------------------------------------------------------------
@@ -748,6 +757,7 @@ class EvhrToA(object):
                            self._outSrsProj4,
                            self._panResolution,
                            self._panSharpen,
+                           self._inputDem,
                            self._logger)
 
     # -------------------------------------------------------------------------
@@ -759,8 +769,8 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, panResolution, panSharpen, logger,
-                     thisToaIsForPanSharpening=False):
+                     toaDir, outSrsProj4, panResolution, panSharpen, inputDem,
+                     logger, thisToaIsForPanSharpening=False):
 
         if logger:
             logger.info('In runOneStrip')
@@ -784,6 +794,7 @@ class EvhrToA(object):
 
             EvhrToA._stripToToa(imageForEachBandInStrip,
                                 toaName,
+                                inputDem,
                                 orthoDir,
                                 demDir,
                                 toaDir,
@@ -1006,8 +1017,9 @@ class EvhrToA(object):
     # run -> runOneStrip -> stripToToa
     # -------------------------------------------------------------------------
     @staticmethod
-    def _stripToToa(imageForEachBandInStrip, toaName, orthoDir, demDir, toaDir,
-                    outSrsProj4, mapproject_threads, panResolution, logger):
+    def _stripToToa(imageForEachBandInStrip, toaName, inputDem, orthoDir,
+                    demDir, toaDir, outSrsProj4, mapproject_threads,
+                    panResolution, logger):
 
         if logger:
             logger.info('In _stripToToa, processing ' + toaName)
@@ -1025,6 +1037,7 @@ class EvhrToA(object):
         for stripBand in imageForEachBandInStrip:
 
             orthoBandDg = EvhrToA._orthoOne(stripBand,
+                                            inputDem,
                                             orthoDir,
                                             demDir,
                                             outSrsProj4,

@@ -48,6 +48,11 @@ def main():
                         action='store_true',
                         help='Apply panchromatic sharpening to the output '
                              'ToA images.')
+    
+    parser.add_argument('--dem',
+                        type=pathlib.Path,
+                        help='Fully-qualified path to DEM footprints shape '
+                             ' file.')
 
     group = parser.add_mutually_exclusive_group(required=True)
 
@@ -63,6 +68,8 @@ def main():
 
     args = parser.parse_args()
 
+    print(args.dem)
+
     print('GDAL version:', gdal.__version__)
 
     # ---
@@ -74,7 +81,7 @@ def main():
 
         with open(args.scenes_in_file, newline='') as csvFile:
             reader = csv.reader(csvFile)
-            scenes = [scene[0] for scene in reader]
+            scenes = [pathlib.Path(scene[0]) for scene in reader]
 
     # ---
     # Logging
@@ -108,7 +115,7 @@ def main():
 
     else:
 
-        toa = EvhrToA(args.o, args.pan_res, args.pan_sharpen, logger)
+        toa = EvhrToA(args.o, args.dem, args.pan_res, args.pan_sharpen, logger)
         toa.run(dgScenes)
 
 
