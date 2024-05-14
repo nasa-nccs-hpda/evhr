@@ -18,13 +18,14 @@ class EvhrToaCelery(EvhrToA):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, panResolution=1, panSharpen=False,
-                 unusedLogger=None):
+    def __init__(self, outDir, inputDemPath=None, panResolution=1,
+                 panSharpen=False, unusedLogger=None):
 
         logger.info('In EvhrToaCelery.__init__')
 
         # Initialize the base class.
         super(EvhrToaCelery, self).__init__(outDir,
+                                            inputDemPath,
                                             panResolution,
                                             panSharpen,
                                             unusedLogger)
@@ -36,7 +37,7 @@ class EvhrToaCelery(EvhrToA):
     # -------------------------------------------------------------------------
     def processStrips(self, stripsWithScenes, bandDir, stripDir, orthoDir,
                       demDir, toaDir, outSrsProj4, panResolution, panSharpen,
-                      unusedLogger):
+                      inputDem, unusedLogger):
 
         logger.info('In EvhrToaCelery.processStrips')
 
@@ -51,6 +52,7 @@ class EvhrToaCelery(EvhrToA):
             outSrsProj4,
             panResolution,
             panSharpen,
+            inputDem,
             logger) for key in iter(stripsWithScenes))
 
         result = wpi.apply_async()
@@ -67,7 +69,7 @@ class EvhrToaCelery(EvhrToA):
     @app.task(serializer='pickle')
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
                      toaDir, outSrsProj4, panResolution, panSharpen,
-                     unusedLogger, thisToaIsForPanSharpening=False):
+                     inputDem, unusedLogger, thisToaIsForPanSharpening=False):
 
         logger.info('In EvhrToaCelery._runOneStrip')
 
@@ -82,6 +84,7 @@ class EvhrToaCelery(EvhrToA):
 
         EvhrToA._stripToToa(imageForEachBandInStrip,
                             toaName,
+                            inputDem,
                             orthoDir,
                             demDir,
                             toaDir,

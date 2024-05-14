@@ -50,7 +50,8 @@ def main():
                              'ToA images.')
     
     parser.add_argument('--dem',
-                        type=pathlib.Path,
+                        type=str,
+                        required=False,
                         help='Fully-qualified path to DEM footprints shape '
                              ' file.')
 
@@ -67,8 +68,6 @@ def main():
                             'list of scene files')
 
     args = parser.parse_args()
-
-    print(args.dem)
 
     print('GDAL version:', gdal.__version__)
 
@@ -110,7 +109,8 @@ def main():
 
         with ILProcessController('evhr.model.CeleryConfiguration'):
 
-            toa = EvhrToaCelery(args.o, args.pan_res, args.pan_sharpen, logger)
+            toa = EvhrToaCelery(args.o, args.dem, args.pan_res,
+                                args.pan_sharpen, logger)
             toa.run(dgScenes)
 
     else:

@@ -22,6 +22,7 @@ from core.model.SystemCommand import SystemCommand
 
 from evhr.model.ToaCalculation import ToaCalculation
 from evhr.model.InputDem import InputDem 
+from evhr.model.AsterSrtmDem import AsterSrtmDem
 
 
 # -----------------------------------------------------------------------------
@@ -36,8 +37,6 @@ from evhr.model.InputDem import InputDem
 #           _stripToToa
 #               _orthoOne
 #                   _createDemForOrthos
-#                       _mosaicAndClipDemTiles
-#                           _clipShp
 #       _stripToToa
 #           _ToaCalculation.run
 #           _mergeBands
@@ -91,61 +90,12 @@ class EvhrToA(object):
             self._logger.info('Ortho image directory: ' + self._orthoDir)
             self._logger.info('ToA directory: ' + self._toaDir)
 
-        self._inputDem = InputDem(inputDemPath, self._demDir, self._logger)
-
-    # -------------------------------------------------------------------------
-    # clipShp
-    #
-    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
-    #     -> mosaicAndClipDemTiles -> clipShp
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def _clipShp(shpFile, envelope, logger):
-
-        if logger:
-            logger.info('Clipping Shapefile.')
-
-        # Create a temporary file for the clip output.
-        tempClipFile = tempfile.mkstemp()[1]
-
-        # ---
-        # To filter scenes that only overlap the AoI slightly, decrease both
-        # corners of the query AoI.
-        # ---
-        MIN_OVERLAP_IN_DEGREES = 0.02
-        ulx = float(envelope.ulx()) + MIN_OVERLAP_IN_DEGREES
-        uly = float(envelope.uly()) - MIN_OVERLAP_IN_DEGREES
-        lrx = float(envelope.lrx()) - MIN_OVERLAP_IN_DEGREES
-        lry = float(envelope.lry()) + MIN_OVERLAP_IN_DEGREES
-
-        # Clip.  The debug option somehow prevents an occasional seg. fault!
-        cmd = 'ogr2ogr' + \
-              ' -f "GML"' + \
-              ' -spat' + \
-              ' ' + str(ulx) + \
-              ' ' + str(lry) + \
-              ' ' + str(lrx) + \
-              ' ' + str(uly) + \
-              ' -spat_srs' + \
-              ' "' + envelope.GetSpatialReference().ExportToProj4() + '"' + \
-              ' --debug on'
-
-        # ---
-        # This was in the EVHR project, but I do not remember why it is
-        # important.
-        # ---
-        MAXIMUM_SCENES = 5
-        cmd += ' -limit ' + str(MAXIMUM_SCENES)
-
-        cmd += ' "' + tempClipFile + '"' + \
-               ' "' + shpFile + '"'
-
-        SystemCommand(cmd, logger, True)
-
-        xml = minidom.parse(tempClipFile)
-        features = xml.getElementsByTagName('gml:featureMember')
-
-        return features
+        if inputDemPath:
+            self._inputDem = InputDem(inputDemPath, self._demDir, self._logger)
+        else:
+            self._logger.info('Got no user-supplied DEM, defaulting to' + \
+                              ' ADAPT SRTM/ASTERGDEM')
+            self._inputDem = AsterSrtmDem(self._demDir, self._logger)
 
     # -------------------------------------------------------------------------
     # collectImagesByStrip
@@ -253,7 +203,7 @@ class EvhrToA(object):
         xEnv = Envelope()
         xEnv.addPoint(xUlx, xUly, 0.0, tempEnv.GetSpatialReference())
         xEnv.addPoint(xLrx, xLry, 0.0, tempEnv.GetSpatialReference())
-        # EvhrToA._mosaicAndClipDemTiles(demName, xEnv, demDir, logger)
+
         inputDem.mosaicAndClipDemTiles(demName, xEnv)
 
         return demName
@@ -430,93 +380,6 @@ class EvhrToA(object):
         # Delete the band files.
         for bandFile in bandFiles:
             os.remove(bandFile)
-
-    # -------------------------------------------------------------------------
-    # mosaicAndClipDemTiles
-    #
-    # To build the SRTM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp  /explore/nobackup/projects/dem/SRTM/1-ArcSec/*.hgt
-    #
-    # To build the ASTERGDEM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp  /explore/nobackup/projects/dem/ASTERGDEM/v2/*dem.tif
-    #
-    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
-    #     -> mosaicAndClipDemTiles
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def _mosaicAndClipDemTiles(outDemName, envelope, demDir, logger):
-
-        if logger:
-            logger.info('Creating DEM ' + str(outDemName))
-
-        outDemNameTemp = outDemName.replace('.tif', '-temp.tif')
-
-        # ---
-        # SRTM was collected between -54 and 60 degrees of latitude.  Use
-        # ASTERGDEM where SRTM is unavailable.
-        # ---
-        SHP_INDEX = None
-
-        if envelope.uly() >= -54.0 and envelope.uly() <= 60.0 and \
-           envelope.lry() >= -54.0 and envelope.lry() <= 60.0:
-
-            SHP_INDEX = \
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             'SRTM/srtm.shp')
-
-        else:
-
-            SHP_INDEX = \
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             'ASTERGDEM/astergdem.shp')
-
-        # Get the tile Shapefile and intersect it with the AoI.
-        features = EvhrToA._clipShp(SHP_INDEX, envelope, logger)
-
-        if not features or len(features) == 0:
-
-            msg = 'Clipping rectangle to SRTM did not return any ' + \
-                  'features.  Corners: (' + str(envelope.ulx()) + ', ' + \
-                  str(envelope.uly()) + '), (' + \
-                  str(envelope.lrx()) + ', ' + str(envelope.lry()) + ')'
-
-            raise RuntimeError(msg)
-
-        # Get the list of tiles.
-        tiles = []
-
-        for feature in features:
-
-            tileFile = str(feature.
-                           getElementsByTagName('ogr:location')[0].
-                           firstChild.
-                           data)
-
-            tiles.append(tileFile)
-
-        # Mosaic the tiles.
-        cmd = 'gdal_merge.py' + \
-              ' -o ' + outDemNameTemp + \
-              ' -ul_lr' + \
-              ' ' + str(envelope.ulx()) + \
-              ' ' + str(envelope.uly()) + \
-              ' ' + str(envelope.lrx()) + \
-              ' ' + str(envelope.lry()) + \
-              ' ' + ' '.join(tiles)
-
-        SystemCommand(cmd, logger, True)
-
-        # Run mosaicked DEM through geoid correction
-        cmd = EvhrToA.BASE_SP_CMD + \
-            'dem_geoid ' + \
-            outDemNameTemp + ' --geoid EGM96 -o ' + \
-            outDemName.strip('-adj.tif') + \
-            ' --reverse-adjustment'
-
-        SystemCommand(cmd, logger, True)
-
-        for log in glob.glob(os.path.join(demDir, '*log*.txt')):
-            os.remove(log)  # remove dem_geoid log file
 
     # --------------------------------------------------------------------------
     # _orthoOne
