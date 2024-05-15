@@ -46,28 +46,17 @@ class InputDem(object):
     # mosaicAndClipDemTiles
     # ------------------------------------------------------------------------
     def mosaicAndClipDemTiles(self,
-                                 outDemName: pathlib.Path,
-                                 envelope: Envelope) -> None:
-
-        self._mosaicAndClipDemTiles(
-            self._demFootprintsPath, outDemName, envelope)
-
-    # ------------------------------------------------------------------------
-    # _mosaicAndClipDemTiles
-    # ------------------------------------------------------------------------
-    def _mosaicAndClipDemTiles(self,
-                               demFootprintsPath: pathlib.Path,
-                               outDemName: pathlib.Path,
-                               envelope: Envelope) -> None:
+                              outDemName: pathlib.Path,
+                              envelope: Envelope) -> None:
 
         # Validate both footprints and DEM exist and are readable.
-        self._validateDem(demFootprintsPath)
+        self._validateDem(self._demFootprintsPath)
 
         if self._logger:
             self._logger.info(f'Creating DEM {str(outDemName)}')
 
         # Clip the footprints to the envelope extent.
-        features = self._clipShp(demFootprintsPath, envelope)
+        features = self._clipShp(self._demFootprintsPath, envelope)
 
         # Mosaic the DEM rasters (features) that overlap the envelope extent.
         self._mosaicDem(features, outDemName, envelope)
@@ -173,7 +162,8 @@ class InputDem(object):
         SystemCommand(cmd, self._logger, True)
 
         for log in self._demDir.glob('*log*.txt'):
-            log.unlink()  # remove dem_geoid log file(s)
+            # remove geoid process logs
+            log.unlink()
 
     # -------------------------------------------------------------------------
     # _validateDem

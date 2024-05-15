@@ -49,8 +49,6 @@ class AsterSrtmDem(InputDem):
                 self._logger.info(f'{envelope} is outside bounds or SRTM ' +
                                   'DEM, switching to ASTERGDEM')
 
-            self._demFootprintsPath = self.ASTER_FOOTPRINTS_PATH
+            self._demFootprintsPath = pathlib.Path(self.ASTER_FOOTPRINTS_PATH)
 
-        self._mosaicAndClipDemTiles(self._demFootprintsPath,
-                                    outDemName,
-                                    envelope)
+        super().mosaicAndClipDemTiles(outDemName, envelope)
