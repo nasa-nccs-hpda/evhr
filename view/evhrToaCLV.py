@@ -115,8 +115,6 @@ def main():
 
     else:
 
-        print(args.dem)
-        print(args.o)
         toa = EvhrToA(args.o, args.dem, args.pan_res, args.pan_sharpen, logger)
         toa.run(dgScenes)
 
