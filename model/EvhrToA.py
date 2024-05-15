@@ -95,7 +95,7 @@ class EvhrToA(object):
                                       self._demDir,
                                       self._logger)
         else:
-            self._logger.info('Got no user-supplied DEM, defaulting to' + \
+            self._logger.info('No user-supplied DEM, defaulting to' + \
                               ' ADAPT SRTM/ASTERGDEM')
             self._inputDem = AsterSrtmDem(self._demDir, self._logger)
 
