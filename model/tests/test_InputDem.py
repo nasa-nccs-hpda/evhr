@@ -35,7 +35,8 @@ class InputDemTestCase(unittest.TestCase):
 
         with self.assertRaises(FileNotFoundError):
 
-            InputDem(self.DEM_NOT_EXISTS, self.DEM_DIR_EXISTS, None)
+            testDem = InputDem(self.DEM_NOT_EXISTS, self.DEM_DIR_EXISTS, None)
+            testDem._validateDem(self.DEM_NOT_EXISTS)
 
         with self.assertRaisesRegex(FileNotFoundError, 'is expected to be'):
 
@@ -43,7 +44,8 @@ class InputDemTestCase(unittest.TestCase):
 
         try:
 
-            InputDem(self.DEM_EXISTS, self.DEM_DIR_EXISTS, None)
+            testDem = InputDem(self.DEM_EXISTS, self.DEM_DIR_EXISTS, None)
+            testDem._validateDem(self.DEM_EXISTS)
 
         except Exception as e:
 

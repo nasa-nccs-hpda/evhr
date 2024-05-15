@@ -26,7 +26,7 @@ class InputDem(object):
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, demFootprintsPath: pathlib.Path, demDir: pathlib.Path,
+    def __init__(self, demFootprintsPath: str, demDir: str,
                  logger: logging.Logger = None) -> None:
 
         self._logger = logger
@@ -35,15 +35,6 @@ class InputDem(object):
 
         self._demDir = pathlib.Path(demDir)
 
-        if not self._demFootprintsPath.exists():
-
-            raise FileNotFoundError(self._demFootprintsPath)
-
-        if self._logger:
-
-            self._logger.info('DEM footprints shapefile: ' +
-                              str(self._demFootprintsPath))
-
         if not self._demDir.exists():
 
             errorMessage = f'{self._demDir} is expected to be created as'
@@ -51,21 +42,85 @@ class InputDem(object):
 
             raise FileNotFoundError(errorMessage)
 
-        self._validateDem()
-
     # ------------------------------------------------------------------------
     # mosaicAndClipDemTiles
     # ------------------------------------------------------------------------
-    def mosaicAndClipDemTiles(self, outDemName: pathlib.Path,
-                              envelope: Envelope) -> None:
+    def mosaicAndClipDemTiles(self,
+                                 outDemName: pathlib.Path,
+                                 envelope: Envelope) -> None:
+
+        self._mosaicAndClipDemTiles(
+            self._demFootprintsPath, outDemName, envelope)
+
+    # ------------------------------------------------------------------------
+    # _mosaicAndClipDemTiles
+    # ------------------------------------------------------------------------
+    def _mosaicAndClipDemTiles(self,
+                               demFootprintsPath: pathlib.Path,
+                               outDemName: pathlib.Path,
+                               envelope: Envelope) -> None:
+
+        # Validate both footprints and DEM exist and are readable.
+        self._validateDem(demFootprintsPath)
 
         if self._logger:
             self._logger.info(f'Creating DEM {str(outDemName)}')
 
-        outDemNameTemp = outDemName.replace('.tif', '-temp.tif')
+        # Clip the footprints to the envelope extent.
+        features = self._clipShp(demFootprintsPath, envelope)
 
-        features = self._clipShp(envelope)
+        # Mosaic the DEM rasters (features) that overlap the envelope extent.
+        self._mosaicDem(features, outDemName, envelope)
 
+    # ------------------------------------------------------------------------
+    # _clipShp
+    # ------------------------------------------------------------------------
+    def _clipShp(self, demFootprintsPath: pathlib.Path, envelope: Envelope):
+
+        if self._logger:
+            self._logger.info(f'Clipping shapefile {demFootprintsPath}')
+
+        # Create a temporary file for the clip output.
+        tempClipFile = tempfile.mkstemp()[1]
+
+        # ---
+        # To filter scenes that only overlap the AoI slightly, decrease both
+        # corners of the query AoI.
+        # ---
+        MIN_OVERLAP_IN_DEGREES = 0.02
+        ulx = float(envelope.ulx()) + MIN_OVERLAP_IN_DEGREES
+        uly = float(envelope.uly()) - MIN_OVERLAP_IN_DEGREES
+        lrx = float(envelope.lrx()) - MIN_OVERLAP_IN_DEGREES
+        lry = float(envelope.lry()) + MIN_OVERLAP_IN_DEGREES
+
+        # Clip.  The debug option somehow prevents an occasional seg. fault!
+        cmd = 'ogr2ogr' + \
+              ' -f "GML"' + \
+              ' -spat' + \
+              ' ' + str(ulx) + \
+              ' ' + str(lry) + \
+              ' ' + str(lrx) + \
+              ' ' + str(uly) + \
+              ' -spat_srs' + \
+              ' "' + envelope.GetSpatialReference().ExportToProj4() + '"' + \
+              ' --debug on'
+
+        # ---
+        # This was in the EVHR project, but I do not remember why it is
+        # important.
+        # ---
+        MAXIMUM_SCENES = 5
+        cmd += ' -limit ' + str(MAXIMUM_SCENES)
+
+        cmd += ' "' + tempClipFile + '"' + \
+               ' "' + str(demFootprintsPath) + '"'
+
+        SystemCommand(cmd, self._logger, True)
+
+        xml = minidom.parse(tempClipFile)
+        features = xml.getElementsByTagName('gml:featureMember')
+
+        # Check for valid features returned from the temp clip file.
         if not features or len(features) == 0:
 
             msg = 'Clipping rectangles to supplied DEM footprints did not'
@@ -73,7 +128,17 @@ class InputDem(object):
             f' {str(envelope.uly())}), ({str(envelope.lrx())},'
             f' {str(envelope.lry())})'
 
-            return RuntimeError(msg)
+            raise RuntimeError(msg)
+
+        return features
+
+    # ------------------------------------------------------------------------
+    # _mosaicDem
+    # ------------------------------------------------------------------------
+    def _mosaicDem(self, features, outDemName: str,
+                   envelope: Envelope) -> None:
+
+        outDemNameTemp = outDemName.replace('.tif', '-temp.tif')
 
         tiles = []
 
@@ -110,67 +175,23 @@ class InputDem(object):
         for log in self._demDir.glob('*log*.txt'):
             log.unlink()  # remove dem_geoid log file(s)
 
-    # ------------------------------------------------------------------------
-    # _clipShp
-    # ------------------------------------------------------------------------
-    def _clipShp(self, envelope: Envelope):
-
-        if self._logger:
-            self._logger.info(f'Clipping shapefile {self._demFootprintsPath}')
-
-        # Create a temporary file for the clip output.
-        tempClipFile = tempfile.mkstemp()[1]
-
-        # ---
-        # To filter scenes that only overlap the AoI slightly, decrease both
-        # corners of the query AoI.
-        # ---
-        MIN_OVERLAP_IN_DEGREES = 0.02
-        ulx = float(envelope.ulx()) + MIN_OVERLAP_IN_DEGREES
-        uly = float(envelope.uly()) - MIN_OVERLAP_IN_DEGREES
-        lrx = float(envelope.lrx()) - MIN_OVERLAP_IN_DEGREES
-        lry = float(envelope.lry()) + MIN_OVERLAP_IN_DEGREES
-
-        # Clip.  The debug option somehow prevents an occasional seg. fault!
-        cmd = 'ogr2ogr' + \
-              ' -f "GML"' + \
-              ' -spat' + \
-              ' ' + str(ulx) + \
-              ' ' + str(lry) + \
-              ' ' + str(lrx) + \
-              ' ' + str(uly) + \
-              ' -spat_srs' + \
-              ' "' + envelope.GetSpatialReference().ExportToProj4() + '"' + \
-              ' --debug on'
-
-        # ---
-        # This was in the EVHR project, but I do not remember why it is
-        # important.
-        # ---
-        MAXIMUM_SCENES = 5
-        cmd += ' -limit ' + str(MAXIMUM_SCENES)
-
-        cmd += ' "' + tempClipFile + '"' + \
-               ' "' + str(self._demFootprintsPath) + '"'
-
-        SystemCommand(cmd, self._logger, True)
-
-        xml = minidom.parse(tempClipFile)
-        features = xml.getElementsByTagName('gml:featureMember')
-
-        return features
-
     # -------------------------------------------------------------------------
     # _validateDem
     # -------------------------------------------------------------------------
-    def _validateDem(self) -> None:
+    def _validateDem(self, demFootprintsPath: pathlib.Path) -> None:
 
-        demShapeFilePath = self._demFootprintsPath
+        if not demFootprintsPath.exists():
+
+            raise FileNotFoundError(demFootprintsPath)
+
+        if self._logger:
+            self._logger.info('DEM footprints shapefile: ' +
+                              str(demFootprintsPath))
 
         # Test that ogr can open the footprints file and access features.
         try:
 
-            demShapeSource = ogr.Open(str(demShapeFilePath))
+            demShapeSource = ogr.Open(str(demFootprintsPath))
 
             demShapeLayer = demShapeSource.GetLayer()
 
@@ -181,9 +202,9 @@ class InputDem(object):
         except Exception as e:
 
             errorMessage = 'Error opening or accessing layers and' + \
-                f' fields of {str(demShapeFilePath)}, Error: {e}'
+                f' fields of {str(demFootprintsPath)}, Error: {e}'
 
-            raise RuntimeError(errorMessage)
+            raise RuntimeError(errorMessage) from e
 
         # Get a path to the DEM, check if it exists
         demShapeSamplePath = pathlib.Path(demShapeSampleLocation)
@@ -216,4 +237,4 @@ class InputDem(object):
                 ' contains a field "location" that is a path to a valid' + \
                 f' DEM readable by GDAL. Error: {e}'
 
-            raise RuntimeError(errorMessage)
+            raise RuntimeError(errorMessage) from e

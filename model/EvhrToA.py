@@ -91,7 +91,9 @@ class EvhrToA(object):
             self._logger.info('ToA directory: ' + self._toaDir)
 
         if inputDemPath:
-            self._inputDem = InputDem(inputDemPath, self._demDir, self._logger)
+            self._inputDem = InputDem(inputDemPath,
+                                      self._demDir,
+                                      self._logger)
         else:
             self._logger.info('Got no user-supplied DEM, defaulting to' + \
                               ' ADAPT SRTM/ASTERGDEM')

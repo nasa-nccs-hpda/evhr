@@ -48,7 +48,7 @@ def main():
                         action='store_true',
                         help='Apply panchromatic sharpening to the output '
                              'ToA images.')
-    
+
     parser.add_argument('--dem',
                         type=str,
                         required=False,
@@ -115,6 +115,8 @@ def main():
 
     else:
 
+        print(args.dem)
+        print(args.o)
         toa = EvhrToA(args.o, args.dem, args.pan_res, args.pan_sharpen, logger)
         toa.run(dgScenes)
 
