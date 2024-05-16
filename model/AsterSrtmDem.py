@@ -1,5 +1,4 @@
 import logging
-import os
 import pathlib
 
 from core.model.Envelope import Envelope
@@ -18,12 +17,13 @@ class AsterSrtmDem(InputDem):
     a footprints shapefile of the DEM.
     """
 
-    SRTM_FOOTPRINTS_PATH: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), 'SRTM/srtm.shp'
-    )
-    ASTER_FOOTPRINTS_PATH: str = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), 'ASTERGDEM/astergdem.shp'
-    )
+    CUR_FILE_PARENT: pathlib.Path = pathlib.Path(__file__).resolve().parent
+
+    SRTM_FOOTPRINTS_PATH: pathlib.Path = CUR_FILE_PARENT / \
+        'SRTM/srtm.shp'
+
+    ASTER_FOOTPRINTS_PATH: pathlib.Path = CUR_FILE_PARENT / \
+        'ASTERGDEM/astergdem.shp'
 
     # ------------------------------------------------------------------------
     # __init__
@@ -49,6 +49,6 @@ class AsterSrtmDem(InputDem):
                 self._logger.info(f'{envelope} is outside bounds or SRTM ' +
                                   'DEM, switching to ASTERGDEM')
 
-            self._demFootprintsPath = pathlib.Path(self.ASTER_FOOTPRINTS_PATH)
+            self._demFootprintsPath = self.ASTER_FOOTPRINTS_PATH
 
         super().mosaicAndClipDemTiles(outDemName, envelope)

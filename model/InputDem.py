@@ -26,12 +26,12 @@ class InputDem(object):
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, demFootprintsPath: str, demDir: str,
+    def __init__(self, demFootprintsPath: pathlib.Path, demDir: str,
                  logger: logging.Logger = None) -> None:
 
         self._logger = logger
 
-        self._demFootprintsPath = pathlib.Path(demFootprintsPath)
+        self._demFootprintsPath = demFootprintsPath
 
         self._demDir = pathlib.Path(demDir)
 

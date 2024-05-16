@@ -50,7 +50,7 @@ def main():
                              'ToA images.')
 
     parser.add_argument('--dem',
-                        type=str,
+                        type=pathlib.Path,
                         required=False,
                         help='Fully-qualified path to DEM footprints shape '
                              ' file.')
