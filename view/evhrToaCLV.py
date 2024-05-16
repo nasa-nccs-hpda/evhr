@@ -49,6 +49,12 @@ def main():
                         help='Apply panchromatic sharpening to the output '
                              'ToA images.')
 
+    parser.add_argument('--dem',
+                        type=pathlib.Path,
+                        required=False,
+                        help='Fully-qualified path to DEM footprints shape '
+                             ' file.')
+
     group = parser.add_mutually_exclusive_group(required=True)
 
     group.add_argument('--scenes',
@@ -74,7 +80,7 @@ def main():
 
         with open(args.scenes_in_file, newline='') as csvFile:
             reader = csv.reader(csvFile)
-            scenes = [scene[0] for scene in reader]
+            scenes = [pathlib.Path(scene[0]) for scene in reader]
 
     # ---
     # Logging
@@ -103,12 +109,13 @@ def main():
 
         with ILProcessController('evhr.model.CeleryConfiguration'):
 
-            toa = EvhrToaCelery(args.o, args.pan_res, args.pan_sharpen, logger)
+            toa = EvhrToaCelery(args.o, args.dem, args.pan_res,
+                                args.pan_sharpen, logger)
             toa.run(dgScenes)
 
     else:
 
-        toa = EvhrToA(args.o, args.pan_res, args.pan_sharpen, logger)
+        toa = EvhrToA(args.o, args.dem, args.pan_res, args.pan_sharpen, logger)
         toa.run(dgScenes)
 
 

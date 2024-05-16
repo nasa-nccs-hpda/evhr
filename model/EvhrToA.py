@@ -3,6 +3,7 @@ import filecmp
 import glob
 import logging
 import os
+import pathlib
 import shutil
 import tempfile
 from xml.dom import minidom
@@ -20,6 +21,8 @@ from core.model.GeospatialImageFile import GeospatialImageFile
 from core.model.SystemCommand import SystemCommand
 
 from evhr.model.ToaCalculation import ToaCalculation
+from evhr.model.InputDem import InputDem 
+from evhr.model.AsterSrtmDem import AsterSrtmDem
 
 
 # -----------------------------------------------------------------------------
@@ -34,8 +37,6 @@ from evhr.model.ToaCalculation import ToaCalculation
 #           _stripToToa
 #               _orthoOne
 #                   _createDemForOrthos
-#                       _mosaicAndClipDemTiles
-#                           _clipShp
 #       _stripToToa
 #           _ToaCalculation.run
 #           _mergeBands
@@ -49,7 +50,8 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, panResolution=1, panSharpen=False, logger=None):
+    def __init__(self, outDir, inputDemPath=None, panResolution=1,
+                 panSharpen=False, logger=None):
 
         self._logger = logger
 
@@ -88,59 +90,14 @@ class EvhrToA(object):
             self._logger.info('Ortho image directory: ' + self._orthoDir)
             self._logger.info('ToA directory: ' + self._toaDir)
 
-    # -------------------------------------------------------------------------
-    # clipShp
-    #
-    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
-    #     -> mosaicAndClipDemTiles -> clipShp
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def _clipShp(shpFile, envelope, logger):
-
-        if logger:
-            logger.info('Clipping Shapefile.')
-
-        # Create a temporary file for the clip output.
-        tempClipFile = tempfile.mkstemp()[1]
-
-        # ---
-        # To filter scenes that only overlap the AoI slightly, decrease both
-        # corners of the query AoI.
-        # ---
-        MIN_OVERLAP_IN_DEGREES = 0.02
-        ulx = float(envelope.ulx()) + MIN_OVERLAP_IN_DEGREES
-        uly = float(envelope.uly()) - MIN_OVERLAP_IN_DEGREES
-        lrx = float(envelope.lrx()) - MIN_OVERLAP_IN_DEGREES
-        lry = float(envelope.lry()) + MIN_OVERLAP_IN_DEGREES
-
-        # Clip.  The debug option somehow prevents an occasional seg. fault!
-        cmd = 'ogr2ogr' + \
-              ' -f "GML"' + \
-              ' -spat' + \
-              ' ' + str(ulx) + \
-              ' ' + str(lry) + \
-              ' ' + str(lrx) + \
-              ' ' + str(uly) + \
-              ' -spat_srs' + \
-              ' "' + envelope.GetSpatialReference().ExportToProj4() + '"' + \
-              ' --debug on'
-
-        # ---
-        # This was in the EVHR project, but I do not remember why it is
-        # important.
-        # ---
-        MAXIMUM_SCENES = 5
-        cmd += ' -limit ' + str(MAXIMUM_SCENES)
-
-        cmd += ' "' + tempClipFile + '"' + \
-               ' "' + shpFile + '"'
-
-        SystemCommand(cmd, logger, True)
-
-        xml = minidom.parse(tempClipFile)
-        features = xml.getElementsByTagName('gml:featureMember')
-
-        return features
+        if inputDemPath:
+            self._inputDem = InputDem(inputDemPath,
+                                      self._demDir,
+                                      self._logger)
+        else:
+            self._logger.info('No user-supplied DEM, defaulting to' + \
+                              ' ADAPT SRTM/ASTERGDEM')
+            self._inputDem = AsterSrtmDem(self._demDir, self._logger)
 
     # -------------------------------------------------------------------------
     # collectImagesByStrip
@@ -210,7 +167,7 @@ class EvhrToA(object):
     # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
     # -------------------------------------------------------------------------
     @staticmethod
-    def _createDemForOrthos(envelope, demDir, logger):
+    def _createDemForOrthos(inputDem, envelope, demDir, logger):
 
         if logger:
             logger.info('Creating DEM for orthorectification.')
@@ -248,7 +205,8 @@ class EvhrToA(object):
         xEnv = Envelope()
         xEnv.addPoint(xUlx, xUly, 0.0, tempEnv.GetSpatialReference())
         xEnv.addPoint(xLrx, xLry, 0.0, tempEnv.GetSpatialReference())
-        EvhrToA._mosaicAndClipDemTiles(demName, xEnv, demDir, logger)
+
+        inputDem.mosaicAndClipDemTiles(demName, xEnv)
 
         return demName
 
@@ -429,100 +387,13 @@ class EvhrToA(object):
         for bandFile in bandFiles:
             os.remove(bandFile)
 
-    # -------------------------------------------------------------------------
-    # mosaicAndClipDemTiles
-    #
-    # To build the SRTM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS srtm.shp  /explore/nobackup/projects/dem/SRTM/1-ArcSec/*.hgt
-    #
-    # To build the ASTERGDEM index file:
-    # gdaltindex -t_srs "EPSG:4326" -src_srs_name SRS astergdem.shp  /explore/nobackup/projects/dem/ASTERGDEM/v2/*dem.tif
-    #
-    # run -> runOneStrip -> stripToToa -> orthoOne -> createDemForOrthos
-    #     -> mosaicAndClipDemTiles
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def _mosaicAndClipDemTiles(outDemName, envelope, demDir, logger):
-
-        if logger:
-            logger.info('Creating DEM ' + str(outDemName))
-
-        outDemNameTemp = outDemName.replace('.tif', '-temp.tif')
-
-        # ---
-        # SRTM was collected between -54 and 60 degrees of latitude.  Use
-        # ASTERGDEM where SRTM is unavailable.
-        # ---
-        SHP_INDEX = None
-
-        if envelope.uly() >= -54.0 and envelope.uly() <= 60.0 and \
-           envelope.lry() >= -54.0 and envelope.lry() <= 60.0:
-
-            SHP_INDEX = \
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             'SRTM/srtm.shp')
-
-        else:
-
-            SHP_INDEX = \
-                os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                             'ASTERGDEM/astergdem.shp')
-
-        # Get the tile Shapefile and intersect it with the AoI.
-        features = EvhrToA._clipShp(SHP_INDEX, envelope, logger)
-
-        if not features or len(features) == 0:
-
-            msg = 'Clipping rectangle to SRTM did not return any ' + \
-                  'features.  Corners: (' + str(envelope.ulx()) + ', ' + \
-                  str(envelope.uly()) + '), (' + \
-                  str(envelope.lrx()) + ', ' + str(envelope.lry()) + ')'
-
-            raise RuntimeError(msg)
-
-        # Get the list of tiles.
-        tiles = []
-
-        for feature in features:
-
-            tileFile = str(feature.
-                           getElementsByTagName('ogr:location')[0].
-                           firstChild.
-                           data)
-
-            tiles.append(tileFile)
-
-        # Mosaic the tiles.
-        cmd = 'gdal_merge.py' + \
-              ' -o ' + outDemNameTemp + \
-              ' -ul_lr' + \
-              ' ' + str(envelope.ulx()) + \
-              ' ' + str(envelope.uly()) + \
-              ' ' + str(envelope.lrx()) + \
-              ' ' + str(envelope.lry()) + \
-              ' ' + ' '.join(tiles)
-
-        SystemCommand(cmd, logger, True)
-
-        # Run mosaicked DEM through geoid correction
-        cmd = EvhrToA.BASE_SP_CMD + \
-            'dem_geoid ' + \
-            outDemNameTemp + ' --geoid EGM96 -o ' + \
-            outDemName.strip('-adj.tif') + \
-            ' --reverse-adjustment'
-
-        SystemCommand(cmd, logger, True)
-
-        for log in glob.glob(os.path.join(demDir, '*log*.txt')):
-            os.remove(log)  # remove dem_geoid log file
-
     # --------------------------------------------------------------------------
     # _orthoOne
     #
     # run -> processStrips -> runOneStrip -> stripToToa -> orthoOne
     # --------------------------------------------------------------------------
     @staticmethod
-    def _orthoOne(bandFile, orthoDir, demDir, outSrsProj4, mapproject_threads,
+    def _orthoOne(bandFile, inputDem, orthoDir, demDir, outSrsProj4, mapproject_threads,
                   panResolution, logger):
 
         baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
@@ -538,7 +409,8 @@ class EvhrToA(object):
 
             try:
 
-                clippedDEM = EvhrToA._createDemForOrthos(bandFile.envelope(),
+                clippedDEM = EvhrToA._createDemForOrthos(inputDem,
+                                                         bandFile.envelope(),
                                                          demDir,
                                                          logger)
 
@@ -650,6 +522,7 @@ class EvhrToA(object):
                       outSrsProj4,
                       panResolution,
                       panSharpen,
+                      inputDem,
                       logger):
 
         for key in iter(stripsWithScenes):
@@ -664,6 +537,7 @@ class EvhrToA(object):
                                  outSrsProj4,
                                  panResolution,
                                  panSharpen,
+                                 inputDem,
                                  logger)
 
     # -------------------------------------------------------------------------
@@ -779,6 +653,7 @@ class EvhrToA(object):
                            self._outSrsProj4,
                            self._panResolution,
                            self._panSharpen,
+                           self._inputDem,
                            self._logger)
 
     # -------------------------------------------------------------------------
@@ -790,8 +665,8 @@ class EvhrToA(object):
     # -------------------------------------------------------------------------
     @staticmethod
     def _runOneStrip(stripID, scenes, bandDir, stripDir, orthoDir, demDir,
-                     toaDir, outSrsProj4, panResolution, panSharpen, logger,
-                     thisToaIsForPanSharpening=False):
+                     toaDir, outSrsProj4, panResolution, panSharpen, inputDem,
+                     logger, thisToaIsForPanSharpening=False):
 
         if logger:
             logger.info('In runOneStrip')
@@ -814,6 +689,7 @@ class EvhrToA(object):
             # StripToToa detects an empty imageForEachBandInStrip, and stops.
             EvhrToA._stripToToa(imageForEachBandInStrip,
                                 toaName,
+                                inputDem,
                                 orthoDir,
                                 demDir,
                                 toaDir,
@@ -1038,8 +914,9 @@ class EvhrToA(object):
     # run -> runOneStrip -> stripToToa
     # -------------------------------------------------------------------------
     @staticmethod
-    def _stripToToa(imageForEachBandInStrip, toaName, orthoDir, demDir, toaDir,
-                    outSrsProj4, mapproject_threads, panResolution, logger):
+    def _stripToToa(imageForEachBandInStrip, toaName, inputDem, orthoDir,
+                    demDir, toaDir, outSrsProj4, mapproject_threads,
+                    panResolution, logger):
 
         if logger:
             logger.info('In _stripToToa, processing ' + toaName)
@@ -1057,6 +934,7 @@ class EvhrToA(object):
         for stripBand in imageForEachBandInStrip:
 
             orthoBandDg = EvhrToA._orthoOne(stripBand,
+                                            inputDem,
                                             orthoDir,
                                             demDir,
                                             outSrsProj4,
