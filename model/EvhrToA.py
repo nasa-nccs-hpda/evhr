@@ -796,12 +796,6 @@ class EvhrToA(object):
         if logger:
             logger.info('In runOneStrip')
 
-        # imageForEachBandInStrip = EvhrToA._createStrip(stripID,
-        #                                                scenes,
-        #                                                bandDir,
-        #                                                stripDir,
-        #                                                logger)
-
         toaName = os.path.join(toaDir, stripID + '-toa.tif')
 
         if thisToaIsForPanSharpening:
