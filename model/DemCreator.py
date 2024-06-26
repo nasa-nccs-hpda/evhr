@@ -4,6 +4,8 @@ import os
 from core.model.BaseFile import BaseFile
 from core.model.SystemCommand import SystemCommand
 
+from evhr.model.EvhrUtils import EvhrUtils
+
 
 # -----------------------------------------------------------------------------
 # Class DemCreator
@@ -15,9 +17,8 @@ class DemCreator(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, logger, testMode=False, createCOG=False):
+    def __init__(self, outDir, logger, testMode=False):
 
-        self._createCOG = createCOG
         self._logger = logger
         self._testMode = testMode
 
@@ -41,29 +42,35 @@ class DemCreator(object):
 
         for f in files:
 
-            name, ext = os.path.splitext(f)
+            name, _ = os.path.splitext(f)
             inFile = os.path.join(workDir, f)
-            cogName = os.path.join(workDir, name + 'CoG.tif')
+            inFileNonCog = os.path.join(workDir, name + 'noncog.tif')
+
+            # Rename inFile to reflect it is not the final CoG format raster.
+            os.rename(inFile, inFileNonCog)
+
+            # This is the final CoG file name
+            cogName = os.path.join(workDir, f)
 
             if os.path.exists(cogName):
                 cogs.append(cogName)
+                os.remove(inFileNonCog)
                 logger.info(f'{cogName} already exists.')
                 continue
 
-            cmd = 'gdal_translate ' + \
-                  inFile + \
-                  ' ' + cogName + \
-                  ' -co TILED=YES' + \
-                  ' -co COPY_SRC_OVERVIEWS=YES' + \
-                  ' -co COMPRESS=LZW'
+            logger.info(f'Translating {inFileNonCog} to CoG {cogName}')
 
-            SystemCommand(cmd, logger, True)
+            EvhrUtils.createCloudOptimizedGeotiff(cogName,
+                                                  inFileNonCog,
+                                                  logger)
 
             if not os.path.exists(cogName):
-                logger.warn('CoG, ' + cogName, ' was not created.')
+                errorMessage = f'CoG {cogName} was not created'
+                logger.error(errorMessage)
+                raise RuntimeError(errorMessage)
 
-            else:
-                cogs.append(cogName)
+            cogs.append(cogName)
+            os.remove(inFileNonCog)
 
         return cogs
 
@@ -75,6 +82,7 @@ class DemCreator(object):
 
         files = DemCreator._getFileList(workDir)
 
+        print(files)
         for f in files:
 
             testFile = os.path.join(workDir, f)
@@ -124,14 +132,13 @@ class DemCreator(object):
             self._processPair(key, pairs[key],
                               self._outDir,
                               self._testMode,
-                              self._createCOG,
                               self._logger)
 
     # -------------------------------------------------------------------------
     # processPair
     # -------------------------------------------------------------------------
     @staticmethod
-    def _processPair(pairName, scenes, outDir, testMode, createCOG, logger):
+    def _processPair(pairName, scenes, outDir, testMode, logger):
 
         if logger:
             logger.info('In _processPair')
@@ -192,9 +199,11 @@ class DemCreator(object):
                 else:
                     raise RuntimeError(msg)
 
+        # ---
         # Regardless of previous existing DEM, continue with COG generation
-        if createCOG:
-            DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
+        # COG generation is now default behaviour
+        # ---
+        DemCreator._createCloudOptimizedGeotiffs(workDir, logger)
 
         if logger:
             logger.info('DEM completed in: ' + workDir)

@@ -18,7 +18,6 @@ from evhr.model.DemCreatorCelery import DemCreatorCelery
 # evhr/view/demCreatorCLV.py -t \
 #    -o /explore/nobackup/projects/ilab/scratch/SystemTesting/evhr/testDEM \
 #    --pairs_in_file /explore/nobackup/projects/ilab/scratch/SystemTesting/evhr/testDEM/demcreator_test_1_pair.csv \
-#    --cog \
 #    --logToFile
 # -----------------------------------------------------------------------------
 def main():
@@ -35,10 +34,6 @@ def main():
     parser.add_argument('--celery',
                         action='store_true',
                         help='Use Celery for distributed processing.')
-
-    parser.add_argument('--cog',
-                        action='store_true',
-                        help='Create cloud-optimized GeoTiffs.')
 
     parser.add_argument('--logToFile',
                         action='store_true',
@@ -98,13 +93,13 @@ def main():
         with ILProcessController('evhr.model.CeleryConfiguration') as \
              processController:
 
-            dc = DemCreatorCelery(args.o, logger, args.t, args.cog)
+            dc = DemCreatorCelery(args.o, logger, args.t)
 
             dc.runPairs(pairs)
 
     else:
 
-        dc = DemCreator(args.o, logger, args.t, args.cog)
+        dc = DemCreator(args.o, logger, args.t)
 
         dc.runPairs(pairs)
 

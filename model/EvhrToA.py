@@ -1,12 +1,9 @@
 
 import filecmp
-import glob
 import logging
 import os
-import pathlib
 import shutil
 import tempfile
-from xml.dom import minidom
 
 from osgeo import gdal
 from osgeo import ogr
@@ -21,8 +18,9 @@ from core.model.GeospatialImageFile import GeospatialImageFile
 from core.model.SystemCommand import SystemCommand
 
 from evhr.model.ToaCalculation import ToaCalculation
-from evhr.model.InputDem import InputDem 
+from evhr.model.InputDem import InputDem
 from evhr.model.AsterSrtmDem import AsterSrtmDem
+from evhr.model.EvhrUtils import EvhrUtils
 
 
 # -----------------------------------------------------------------------------
@@ -91,12 +89,16 @@ class EvhrToA(object):
             self._logger.info('ToA directory: ' + self._toaDir)
 
         if inputDemPath:
+
             self._inputDem = InputDem(inputDemPath,
                                       self._demDir,
                                       self._logger)
         else:
-            self._logger.info('No user-supplied DEM, defaulting to' + \
-                              ' ADAPT SRTM/ASTERGDEM')
+
+            if self._logger:
+                self._logger.info('No user-supplied DEM, defaulting to' +
+                                  ' ADAPT SRTM/ASTERGDEM')
+
             self._inputDem = AsterSrtmDem(self._demDir, self._logger)
 
     # -------------------------------------------------------------------------
@@ -341,16 +343,19 @@ class EvhrToA(object):
             logger.warn('No band files to merge.')
             return
 
+        outFileNameNonCogTemp = outFileName.replace('.tif', '-noncog.tif')
+
         bandDs = gdal.Open(bandFiles[0])
         driver = gdal.GetDriverByName('GTiff')
+        options = ['COMPRESS=LZW',
+                   'BIGTIFF=YES']
 
-        ds = driver.Create(outFileName,
+        ds = driver.Create(outFileNameNonCogTemp,
                            bandDs.RasterXSize,
                            bandDs.RasterYSize,
                            len(bandFiles),
                            gdal.GDT_Int16,
-                           options=['COMPRESS=LZW',
-                                    'BIGTIFF=YES'])
+                           options=options)
 
         try:
 
@@ -380,8 +385,19 @@ class EvhrToA(object):
                                     bandDs.RasterYSize,
                                     gdal.Open(bandFile).ReadRaster())
 
+            # Flush data to disk
+            ds = None
+
+            # Translate geotiff to cloud-optimized-geotiff format
+            EvhrUtils.createCloudOptimizedGeotiff(outFileName,
+                                                  outFileNameNonCogTemp,
+                                                  logger)
+
+            # Delete the non-cog TOA file
+            os.remove(outFileNameNonCogTemp)
+
         except Exception:
-            os.remove(outFileName)
+            os.remove(outFileNameNonCogTemp)
 
         # Delete the band files.
         for bandFile in bandFiles:
@@ -393,8 +409,8 @@ class EvhrToA(object):
     # run -> processStrips -> runOneStrip -> stripToToa -> orthoOne
     # --------------------------------------------------------------------------
     @staticmethod
-    def _orthoOne(bandFile, inputDem, orthoDir, demDir, outSrsProj4, mapproject_threads,
-                  panResolution, logger):
+    def _orthoOne(bandFile, inputDem, orthoDir, demDir, outSrsProj4,
+                  mapproject_threads, panResolution, logger):
 
         baseName = os.path.splitext(os.path.basename(bandFile.fileName()))[0]
         orthoFile = os.path.join(orthoDir, baseName + '-ortho.tif')
@@ -493,15 +509,15 @@ class EvhrToA(object):
                 orthoDg = DgFile(orthoFile)
 
             except Exception as e:
-                
+
                 msg = 'Encountered exception creating DgFile ' + \
                     'from {}: {}'.format(orthoFile, e)
-                
+
                 if logger:
                     logger.error(msg)
-                
+
                 os.remove(orthoFile)
-                
+
                 raise RuntimeError(msg) from e
 
         return orthoDg
@@ -700,7 +716,7 @@ class EvhrToA(object):
 
         if panSharpen and \
             scenes[0].isMultispectral() and \
-            os.path.exists(toaName):
+                os.path.exists(toaName):
 
             EvhrToA._runPanSharpening(toaName, stripID, scenes, bandDir,
                                       stripDir, orthoDir,
@@ -741,17 +757,18 @@ class EvhrToA(object):
             if not os.path.exists(panName):
 
                 logger.warning('Panchromatic mate, ' +
-                            str(panName) +
-                            ', does not exist.  ' +
-                            'Pansharpening will not be applied.')
+                               str(panName) +
+                               ', does not exist.  ' +
+                               'Pansharpening will not be applied.')
 
             else:
                 panDgMates.append(DgFile(panName))
 
         if not panDgMates:
 
-            logger.warning('There are not panchromatic scenes for catalog ID ' +
-                        str(stripID))
+            logger.warning(
+                'There are not panchromatic scenes for catalog ID ' +
+                str(stripID))
 
             return
 
