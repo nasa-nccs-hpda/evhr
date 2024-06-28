@@ -3,13 +3,13 @@ import pathlib
 import sys
 
 import unittest
-from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 sys.modules['core.model.Envelope'] = Mock()
 sys.modules['core.model.SystemCommand'] = Mock()
 
 from evhr.model.InputDem import InputDem
+
 
 # ----------------------------------------------------------------------------
 # InputDemTestCase
@@ -29,7 +29,7 @@ class InputDemTestCase(unittest.TestCase):
     DEM_DIR_NOT_EXISTS = pathlib.Path('.DEM_DIR_NOT_EXIST')
 
     # ------------------------------------------------------------------------
-    # 
+    # test_init
     # ------------------------------------------------------------------------
     def test_init(self):
 
