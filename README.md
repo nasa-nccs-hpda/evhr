@@ -46,7 +46,7 @@ The following scripts serve as the drivers to run the EVHR tool.
 ```bash
 #!/bin/bash
 singularity instance start \
-	-B /explore,/panfs,/css,/nfs4m,/lscratch,/tmp \
+	-B /explore,/panfs,/css,/nfs4m,/tmp \
 	/explore/nobackup/people/iluser/ilab_containers/evhr_4.0.0.sif \
 	ev_instance
 
@@ -80,7 +80,7 @@ For the scripts, you should provide a .txt file where each line of the file is a
 ### Running the Tool
 
 ```bash
-$ ./run_evhr_exec /path/to/input/file.txt /path/to/output/dir/
+$ ./run_evhr_exec /path/to/input/file.txt outputdir
 ```
 
 ## References
