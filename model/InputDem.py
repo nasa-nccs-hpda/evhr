@@ -107,15 +107,15 @@ class InputDem(object):
         SystemCommand(cmd, self._logger, True)
 
         xml = minidom.parse(tempClipFile)
-        features = xml.getElementsByTagName('gml:featureMember')
+        features = xml.getElementsByTagName('ogr:featureMember')
 
         # Check for valid features returned from the temp clip file.
         if not features or len(features) == 0:
 
-            msg = 'Clipping rectangles to supplied DEM footprints did not'
-            f' return any features. Corners: ({str(envelope.ulx())},'
-            f' {str(envelope.uly())}), ({str(envelope.lrx())},'
-            f' {str(envelope.lry())})'
+            msg = 'Clipping rectangles to supplied DEM footprints did not' \
+                f' return any features. Corners: ({str(envelope.ulx())},' \
+                f' {str(envelope.uly())}), ({str(envelope.lrx())},' \
+                f' {str(envelope.lry())})'
 
             raise RuntimeError(msg)
 
