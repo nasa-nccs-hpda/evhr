@@ -573,8 +573,10 @@ class EvhrToA(object):
         numAfter = len(dgScenes)
 
         if self._logger:
+            self._logger.info('Number of input scenes ' + str(numBefore))
+
             self._logger.info('Set operation removed ' +
-                              str(numAfter - numBefore) +
+                              str(numBefore - numAfter) +
                               ' scenes.')
 
         # ---
