@@ -16,20 +16,18 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, outDir, unusedLogger=None, testMode=False,
-                 createCOG=False):
+    def __init__(self, outDir, unusedLogger=None, testMode=False):
 
         if logger:
             logger.info('In DemCreatorCelery.__init__')
 
         # Initialize the base class.
-        super(DemCreatorCelery, self).__init__(outDir, unusedLogger, testMode,
-                                               createCOG)
+        super(DemCreatorCelery, self).__init__(outDir, unusedLogger, testMode)
 
     # -------------------------------------------------------------------------
     # processPairs
     #
-    # run{env|scenes} -> getPairs -> processPairs
+    # runPairs -> getPairs -> processPairs
     # -------------------------------------------------------------------------
     def processPairs(self, pairs):
 
@@ -41,12 +39,11 @@ class DemCreatorCelery(DemCreator):
                         pairs[key],
                         self._outDir,
                         self._testMode,
-                        self._createCOG,
                         logger) for key in pairs)
 
         result = wpi.apply_async()
         result.get()    # Waits for wpi to finish.
-            
+
         return result
 
     # -------------------------------------------------------------------------
@@ -54,11 +51,9 @@ class DemCreatorCelery(DemCreator):
     # -------------------------------------------------------------------------
     @staticmethod
     @app.task(serializer='pickle')
-    def _processPair(pairName, dgScenes, outDir, testMode, createCOG,
-                     unusedLogger):
+    def _processPair(pairName, dgScenes, outDir, testMode, unusedLogger):
 
         if logger:
             logger.info('In DemCreatorCelery._processPair')
 
-        DemCreator._processPair(pairName, dgScenes, outDir, testMode,
-                                createCOG, logger)
+        DemCreator._processPair(pairName, dgScenes, outDir, testMode, logger)
