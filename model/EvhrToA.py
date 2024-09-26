@@ -723,7 +723,7 @@ class EvhrToA(object):
             EvhrToA._runPanSharpening(toaName, stripID, scenes, bandDir,
                                       stripDir, orthoDir,
                                       demDir, toaDir, outSrsProj4,
-                                      panResolution, logger)
+                                      panResolution, inputDem, logger)
 
         return toaName
 
@@ -741,6 +741,7 @@ class EvhrToA(object):
                           toaDir: str,
                           outSrsProj4: str,
                           panResolution: float,
+                          inputDem: InputDem,
                           logger: logging.RootLogger):
 
         if logger:
@@ -798,6 +799,7 @@ class EvhrToA(object):
                                                 outSrsProj4,
                                                 panResolution,
                                                 False,
+                                                inputDem,
                                                 logger,
                                                 thisToaIsForPanSharpening=True)
 
