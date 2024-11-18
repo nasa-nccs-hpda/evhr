@@ -2,6 +2,7 @@
 import filecmp
 import logging
 import os
+from pathlib import Path
 import shutil
 import tempfile
 
@@ -539,23 +540,29 @@ class EvhrToA(object):
                       panResolution,
                       panSharpen,
                       inputDem,
-                      logger):
+                      logger) -> list:
 
+        toaNames = []
+        
         for key in iter(stripsWithScenes):
 
-            EvhrToA._runOneStrip(key,
-                                 stripsWithScenes[key],
-                                 bandDir,
-                                 stripDir,
-                                 orthoDir,
-                                 demDir,
-                                 toaDir,
-                                 outSrsProj4,
-                                 panResolution,
-                                 panSharpen,
-                                 inputDem,
-                                 logger)
+            toaName = EvhrToA._runOneStrip(key,
+                                           stripsWithScenes[key],
+                                           bandDir,
+                                           stripDir,
+                                           orthoDir,
+                                           demDir,
+                                           toaDir,
+                                           outSrsProj4,
+                                           panResolution,
+                                           panSharpen,
+                                           inputDem,
+                                           logger)
+                                           
+            toaNames.append(toaName)
 
+        return toaNames
+        
     # -------------------------------------------------------------------------
     # removeDuplicates
     # -------------------------------------------------------------------------
@@ -646,7 +653,7 @@ class EvhrToA(object):
     # -> getUtmSrs
     # -> processStrips
     # -------------------------------------------------------------------------
-    def run(self, inDgScenes: list = None) -> None:
+    def run(self, inDgScenes: list = None) -> list:
 
         if self._logger:
             self._logger.info('In run')
@@ -662,17 +669,21 @@ class EvhrToA(object):
         # ---
         # Process the strips.
         # ---
-        self.processStrips(stripsWithDgScenes,
-                           self._bandDir,
-                           self._stripDir,
-                           self._orthoDir,
-                           self._demDir,
-                           self._toaDir,
-                           self._outSrsProj4,
-                           self._panResolution,
-                           self._panSharpen,
-                           self._inputDem,
-                           self._logger)
+        toaNames = self.processStrips(stripsWithDgScenes,
+                                      self._bandDir,
+                                      self._stripDir,
+                                      self._orthoDir,
+                                      self._demDir,
+                                      self._toaDir,
+                                      self._outSrsProj4,
+                                      self._panResolution,
+                                      self._panSharpen,
+                                      self._inputDem,
+                                      self._logger)
+                                      
+        toaPaths = [Path(f) for f in toaNames]
+        
+        return toaPaths
 
     # -------------------------------------------------------------------------
     # runOneStrip
