@@ -543,7 +543,7 @@ class EvhrToA(object):
                       logger) -> list:
 
         toaNames = []
-        
+
         for key in iter(stripsWithScenes):
 
             toaName = EvhrToA._runOneStrip(key,
@@ -558,11 +558,11 @@ class EvhrToA(object):
                                            panSharpen,
                                            inputDem,
                                            logger)
-                                           
+
             toaNames.append(toaName)
 
         return toaNames
-        
+
     # -------------------------------------------------------------------------
     # removeDuplicates
     # -------------------------------------------------------------------------
@@ -680,9 +680,9 @@ class EvhrToA(object):
                                       self._panSharpen,
                                       self._inputDem,
                                       self._logger)
-                                      
+
         toaPaths = [Path(f) for f in toaNames]
-        
+
         return toaPaths
 
     # -------------------------------------------------------------------------
@@ -980,3 +980,10 @@ class EvhrToA(object):
 
         EvhrToA._mergeBands(toaBands, toaName, logger)
         shutil.copy(orthoBandDg.xmlFileName, toaName.replace('.tif', '.xml'))
+
+    # -------------------------------------------------------------------------
+    # toaDir
+    # -------------------------------------------------------------------------
+    @property
+    def toaDir(self) -> Path:
+        return Path(self._toaDir)
